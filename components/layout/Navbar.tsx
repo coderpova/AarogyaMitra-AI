@@ -174,8 +174,10 @@ export default function Navbar() {
         className="
         max-w-7xl
         mx-auto
-        px-6
-        py-4
+        px-4
+        sm:px-6
+        py-3
+        sm:py-4
         flex
         justify-between
         items-center
@@ -200,7 +202,9 @@ export default function Navbar() {
 
           <span
             className="
-            text-2xl
+            text-lg
+            sm:text-xl
+            md:text-2xl
             font-bold
             text-blue-700
             "

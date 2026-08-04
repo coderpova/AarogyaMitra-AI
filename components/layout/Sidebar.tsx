@@ -4,25 +4,26 @@ import Link from "next/link";
 
 import { usePathname, useRouter } from "next/navigation";
 
+import Cookies from "js-cookie";
 import {
   Home,
   LayoutDashboard,
   MessageCircle,
   Hospital,
   FileText,
+  FileSearch,
   User,
   Settings,
   HeartPulse,
   Pill,
+  Calendar,
   Moon,
   Sun,
   X,
   LogOut,
 } from "lucide-react";
-
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-
 import toast from "react-hot-toast";
 
 const menuItems = [
@@ -42,6 +43,11 @@ const menuItems = [
     icon: MessageCircle,
   },
   {
+    title: "Report Scanner",
+    href: "/report-analyzer",
+    icon: FileSearch,
+  },
+  {
     title: "Hospitals",
     href: "/hospital",
     icon: Hospital,
@@ -50,6 +56,11 @@ const menuItems = [
     title: "Medicines",
     href: "/medicines",
     icon: Pill,
+  },
+  {
+    title: "Appointments",
+    href: "/appointments",
+    icon: Calendar,
   },
   {
     title: "Schemes",
@@ -75,33 +86,24 @@ export default function Sidebar({
   open?: boolean;
   setOpen?: (value: boolean) => void;
 }) {
-
   const pathname = usePathname();
-
   const router = useRouter();
-
   const { theme, setTheme } = useTheme();
-
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-
     setMounted(true);
-
   }, []);
 
   const logout = () => {
-
+    Cookies.remove("token");
     localStorage.removeItem("token");
-
+    localStorage.removeItem("user");
+    window.dispatchEvent(new Event("auth-change"));
     window.dispatchEvent(new Event("storage"));
-
     toast.success("Logged Out");
-
-    router.push("/");
-
+    router.push("/login");
     router.refresh();
-
   };
 
   return (

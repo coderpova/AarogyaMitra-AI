@@ -125,6 +125,142 @@ const UserSchema = new Schema(
 
   },
 
+    
+
+
+  medicalHistory:[
+
+
+    {
+
+
+      condition:{
+
+
+        type:String,
+
+        default:"",
+
+
+      },
+
+
+      diagnosedDate:{
+
+
+        type:String,
+
+        default:"",
+
+
+      },
+
+
+      notes:{
+
+
+        type:String,
+
+        default:"",
+
+
+      }
+
+
+    }
+
+
+  ],
+
+
+
+
+
+
+
+  allergies:[
+
+
+    {
+
+
+      name:{
+
+
+        type:String,
+
+        default:"",
+
+
+      },
+
+
+      severity:{
+
+
+        type:String,
+
+        default:"",
+
+
+      }
+
+
+    }
+
+
+  ],
+
+
+
+
+
+
+
+  symptomsHistory:[
+
+
+    {
+
+
+      symptom:{
+
+
+        type:String,
+
+        default:"",
+
+
+      },
+
+
+      date:{
+
+
+        type:String,
+
+        default:"",
+
+
+      },
+
+
+      severity:{
+
+
+        type:String,
+
+        default:"",
+
+
+      }
+
+
+    }
+
+
+  ],
+
 
 
 

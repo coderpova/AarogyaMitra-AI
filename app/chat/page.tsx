@@ -1,24 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import {
+  useState,
+  useEffect,
+  useRef
+} from "react";
+
 
 import {
   Send,
   Bot,
   User,
   ArrowLeft,
+  Mic,
+  Volume2,
+  Trash2,
+  Stethoscope
 } from "lucide-react";
+
+
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/context/AuthContext";
 
 
 
+
+
 interface Message {
 
-  role: "user" | "ai";
+  role:"user" | "ai";
 
-  text: string;
+  text:string;
 
 }
 
@@ -27,511 +40,503 @@ interface Message {
 
 
 
-export default function ChatPage() {
 
 
+export default function ChatPage(){
 
-  const router = useRouter();
 
 
+const router = useRouter();
 
-  const { user } = useAuth();
 
 
+const {user}=useAuth();
 
 
-  const [message, setMessage] = useState("");
 
-  const [loading, setLoading] = useState(false);
 
 
+const [message,setMessage]=useState("");
 
+const [loading,setLoading]=useState(false);
 
 
-  const [messages, setMessages] = useState<Message[]>([
+const [listening,setListening]=useState(false);
 
 
-    {
+const [voiceOpen,setVoiceOpen]=useState(false);
 
-      role:"ai",
 
-      text:"Hello 👋 I am AarogyaMitra AI. How can I help you today?"
 
-    }
 
 
-  ]);
+const chatEndRef = useRef<HTMLDivElement>(null);
 
 
 
 
 
 
+const [messages,setMessages]=useState<Message[]>([
 
 
+{
 
-  // LOAD CHAT HISTORY AFTER REFRESH
+role:"ai",
 
+text:
+"Namaste 👋 Main AarogyaMitra AI hoon. Aapki health problem me doctor ki tarah guide kar sakta hoon."
 
-  useEffect(()=>{
+}
 
 
+]);
 
-    const loadHistory = async()=>{
 
 
-      if(!user?.email) return;
 
 
 
-      try{
 
 
 
-        const res = await fetch("/api/chat/history",{
+// ==========================
+// AI VOICE REPLY
+// ==========================
 
 
-          method:"POST",
+const speakReply=(text:string)=>{
 
 
-          headers:{
+if(typeof window==="undefined")
 
+return;
 
-            "Content-Type":"application/json"
 
 
-          },
 
+const speech = new SpeechSynthesisUtterance(text);
 
-          body:JSON.stringify({
 
 
-            userId:user.email
+speech.rate=0.9;
 
 
-          })
+speech.pitch=1;
 
 
-        });
 
 
 
+if(/[\u0900-\u097F]/.test(text)){
 
 
+speech.lang="hi-IN";
 
 
-        const data = await res.json();
+}
 
 
 
+else if(/[\u0980-\u09FF]/.test(text)){
 
 
-        if(res.ok && data.chats.length>0){
+speech.lang="bn-IN";
 
 
+}
 
-          const oldMessages:Message[]=[];
 
 
+else if(/[\u0B80-\u0BFF]/.test(text)){
 
 
-          data.chats.reverse().forEach((chat:any)=>{
+speech.lang="ta-IN";
 
 
+}
 
-            oldMessages.push({
 
 
-              role:"user",
+else{
 
 
-              text:chat.message
+speech.lang="en-IN";
 
 
-            });
+}
 
 
 
 
 
-            oldMessages.push({
 
+window.speechSynthesis.cancel();
 
-              role:"ai",
 
+window.speechSynthesis.speak(speech);
 
-              text:chat.reply
 
 
-            });
+};
 
 
 
-          });
 
 
 
 
 
 
-          setMessages([
+// ==========================
+// AUTO SCROLL
+// ==========================
 
 
-            {
+useEffect(()=>{
 
-              role:"ai",
 
-              text:"Hello 👋 I am AarogyaMitra AI. How can I help you today?"
+chatEndRef.current?.scrollIntoView({
 
-            },
+behavior:"smooth"
 
+});
 
 
-            ...oldMessages
+},[messages]);
+// ==========================
+// LOAD OLD CHAT
+// ==========================
 
 
-          ]);
+useEffect(()=>{
 
 
+const loadHistory = async()=>{
 
-        }
 
+if(!user?.email)
 
+return;
 
 
 
-      }
+try{
 
-      catch(error){
 
+const res = await fetch(
 
-        console.log(error);
+"/api/chat/history",
 
+{
 
-      }
+method:"POST",
 
+headers:{
 
+"Content-Type":"application/json"
 
-    };
+},
 
 
+body:JSON.stringify({
 
+userId:user.email
 
+})
 
-    loadHistory();
 
+}
 
+);
 
 
-  },[user]);
 
 
 
+const data = await res.json();
 
 
 
 
 
+if(res.ok && data.chats?.length){
 
 
 
+const oldMessages:Message[]=[];
 
-  const sendMessage = async()=>{
 
 
+data.chats.reverse().forEach((chat:any)=>{
 
-    if(!message.trim() || loading) return;
 
+oldMessages.push({
 
+role:"user",
 
+text:chat.message
 
-    const userMessage = message;
+});
 
 
 
 
-    setMessages(prev=>[
 
-      ...prev,
+oldMessages.push({
 
-      {
+role:"ai",
 
-        role:"user",
+text:chat.reply
 
-        text:userMessage
+});
 
-      }
 
-    ]);
 
+});
 
 
 
-    setMessage("");
 
-    setLoading(true);
 
 
+setMessages([
 
 
+{
 
+role:"ai",
 
+text:
+"Namaste 👋 Main AarogyaMitra AI hoon. Aapki health me kaise help kar sakta hoon?"
 
-    try{
+},
 
 
+...oldMessages
 
-      const res = await fetch("/api/chat",{
 
 
+]);
 
-        method:"POST",
 
 
+}
 
-        headers:{
 
 
 
-          "Content-Type":"application/json"
 
+}
 
-        },
 
+catch(error){
 
 
-        body:JSON.stringify({
+console.log(
 
+"History error:",
 
+error
 
-          message:userMessage,
+);
 
 
+}
 
-          userId:user?.email || "guest"
 
 
+};
 
-        })
 
 
+loadHistory();
 
-      });
 
 
+},[user]);
 
 
 
 
 
-      const data = await res.json();
 
 
 
 
 
-      if(!res.ok){
 
 
-        throw new Error(data.message);
 
+// ==========================
+// VOICE INPUT
+// ==========================
 
-      }
 
 
+const startListening=()=>{
 
 
 
+const SpeechRecognition =
 
-      setMessages(prev=>[
+(window as any).SpeechRecognition ||
 
+(window as any).webkitSpeechRecognition;
 
-        ...prev,
 
 
 
-        {
+if(!SpeechRecognition){
 
 
-          role:"ai",
+alert(
 
+"Speech recognition supported nahi hai. Chrome use karo."
 
-          text:data.reply
+);
 
 
-        }
+return;
 
 
-      ]);
+}
 
 
 
 
+const recognition = new SpeechRecognition();
 
-    }
 
-    catch(error){
 
 
+recognition.lang = navigator.language || "en-IN";
 
-      console.log(error);
 
+recognition.continuous=false;
 
 
-      setMessages(prev=>[
+recognition.interimResults=false;
 
 
-        ...prev,
 
-        {
 
 
-          role:"ai",
+setVoiceOpen(true);
 
 
-          text:"Sorry, something went wrong."
+setListening(true);
 
 
-        }
 
 
-      ]);
 
+try{
 
 
-    }
+recognition.start();
 
-    finally{
 
 
-      setLoading(false);
+}
 
 
-    }
+catch(error){
 
 
+console.log(
 
-  };
+"Mic start error",
 
+error
 
+);
 
 
+}
 
 
 
 
 
 
+recognition.onresult=(event:any)=>{
 
 
+const text =
 
+event.results[0][0].transcript;
 
-  return (
 
 
 
-    <div
+console.log(
 
-      className="
-      min-h-screen
-      bg-gray-100
-      dark:bg-gray-950
-      p-6
-      "
+"Voice text:",
 
-    >
+text
 
+);
 
 
 
-      <div
 
-        className="
-        max-w-4xl
-        mx-auto
-        bg-white
-        dark:bg-gray-900
-        rounded-3xl
-        shadow-xl
-        overflow-hidden
-        "
+setMessage(text);
 
-      >
 
 
+};
 
 
 
 
-        <div
 
-          className="
-          bg-blue-700
-          text-white
-          p-6
-          flex
-          items-center
-          gap-4
-          "
 
-        >
 
+recognition.onerror=(event:any)=>{
 
 
-          <button
+console.log(
 
-            onClick={()=>router.back()}
+"Mic Error:",
 
-            className="
-            bg-white/20
-            px-4
-            py-2
-            rounded-xl
-            flex
-            items-center
-            gap-2
-            "
+event.error
 
-          >
+);
 
-            <ArrowLeft size={18}/>
 
-            Back
 
+setListening(false);
 
-          </button>
 
+setVoiceOpen(false);
 
 
 
+};
 
 
-          <Bot size={35}/>
 
 
 
-          <div>
 
+recognition.onend=()=>{
 
-            <h1 className="text-2xl font-bold">
 
-              AarogyaMitra AI
+setListening(false);
 
-            </h1>
 
+setVoiceOpen(false);
 
-            <p className="text-blue-100">
 
-              Healthcare Assistant
 
-            </p>
+};
 
 
-          </div>
 
+};
 
 
-        </div>
 
 
 
@@ -541,262 +546,1024 @@ export default function ChatPage() {
 
 
 
-        <div
 
-          className="
-          h-[500px]
-          overflow-y-auto
-          p-6
-          space-y-5
-          "
+// ==========================
+// SEND MESSAGE
+// ==========================
 
-        >
 
 
+const sendMessage=async()=>{
 
-        {
 
-          messages.map((msg,index)=>(
+if(!message.trim() || loading)
 
+return;
 
-            <div
 
-            key={index}
 
-            className={`
 
-            flex
+const userText=message;
 
-            gap-3
 
-            items-start
 
-            ${
-              msg.role==="user"
 
-              ?
 
-              "justify-end"
+setMessages(prev=>[
 
-              :
+...prev,
 
-              "justify-start"
+{
 
-            }
+role:"user",
 
-            `}
+text:userText
 
-            >
+}
 
+]);
 
 
 
 
-            {
 
-            msg.role==="ai" &&
 
-            <Bot className="text-blue-600"/>
+setMessage("");
 
-            }
+setLoading(true);
 
 
 
 
 
-            <div
 
-            className={`
 
-            max-w-md
+try{
 
-            p-4
 
-            rounded-2xl
 
-            whitespace-pre-wrap
+const res = await fetch(
 
+"/api/chat",
 
-            ${
-              msg.role==="user"
+{
 
-              ?
+method:"POST",
 
-              "bg-blue-600 text-white"
 
-              :
+headers:{
 
-              "bg-gray-200 dark:bg-gray-800 dark:text-white"
 
-            }
+"Content-Type":"application/json"
 
 
-            `}
+},
 
-            >
 
+body:JSON.stringify({
 
-              {msg.text}
 
+message:userText,
 
-            </div>
 
+userId:user?.email || "guest"
 
 
+})
 
 
-            {
+}
 
-            msg.role==="user" &&
+);
 
-            <User/>
 
-            }
 
 
 
-            </div>
 
 
+const data = await res.json();
 
-          ))
 
-        }
 
 
 
 
 
-        {
+if(!res.ok){
 
-          loading &&
 
-          <p className="text-gray-500">
+throw new Error(data.message);
 
-            AI is thinking...
 
-          </p>
+}
 
-        }
 
 
 
 
-        </div>
 
+setMessages(prev=>[
 
 
+...prev,
 
 
+{
 
+role:"ai",
 
+text:data.reply
 
-        <div
+}
 
-        className="
-        border-t
-        p-5
-        flex
-        gap-3
-        "
 
-        >
+]);
 
 
 
-          <input
 
 
-          value={message}
 
 
-          onChange={(e)=>setMessage(e.target.value)}
+// AI VOICE START
 
+speakReply(data.reply);
 
 
-          onKeyDown={(e)=>{
 
 
-            if(e.key==="Enter")
 
-              sendMessage();
 
 
-          }}
+}
 
 
 
-          placeholder="Ask your health problem..."
+catch(error){
 
 
+console.log(error);
 
-          className="
-          flex-1
-          border
-          rounded-xl
-          px-4
-          py-3
-          dark:bg-gray-800
-          dark:text-white
-          "
 
 
-          />
 
 
+setMessages(prev=>[
 
 
+...prev,
 
 
+{
 
-          <button
 
+role:"ai",
 
-          onClick={sendMessage}
+text:
+"Sorry, abhi response generate nahi ho pa raha."
 
 
-          disabled={loading}
+}
 
 
+]);
 
-          className="
-          bg-blue-600
-          hover:bg-blue-700
-          disabled:opacity-50
-          text-white
-          px-5
-          rounded-xl
-          "
 
 
-          >
 
+}
 
-            <Send/>
 
 
-          </button>
+finally{
 
 
+setLoading(false);
 
 
+}
 
 
-        </div>
 
+};
 
 
 
 
 
-      </div>
 
 
+// ==========================
+// CLEAR CHAT
+// ==========================
 
 
-    </div>
 
+const clearChat=()=>{
 
-  );
+
+setMessages([
+
+
+{
+
+role:"ai",
+
+text:
+"Namaste 👋 Main AarogyaMitra AI hoon. Aapki health problem bataiye."
+
+}
+
+
+]);
+
+
+
+};
+// ==========================
+// RETURN UI START
+// ==========================
+
+
+return (
+
+
+<div
+
+className="
+h-screen
+flex
+flex-col
+bg-gray-100
+dark:bg-gray-950
+"
+
+>
+
+
+
+
+
+
+{/* VOICE POPUP */}
+
+
+
+{
+
+voiceOpen &&
+
+
+<div
+
+className="
+fixed
+inset-0
+z-50
+bg-black/50
+flex
+items-center
+justify-center
+"
+
+>
+
+
+
+<div
+
+className="
+bg-white
+dark:bg-gray-900
+rounded-3xl
+p-10
+text-center
+shadow-2xl
+"
+
+>
+
+
+<div
+
+className="
+w-32
+h-32
+mx-auto
+rounded-full
+bg-blue-600
+flex
+items-center
+justify-center
+animate-pulse
+"
+
+>
+
+
+<Mic
+
+size={55}
+
+className="text-white"
+
+/>
+
+
+
+</div>
+
+
+
+
+
+
+<h2
+
+className="
+text-2xl
+font-bold
+mt-6
+dark:text-white
+"
+
+>
+
+Listening...
+
+</h2>
+
+
+
+
+
+<p
+
+className="
+text-gray-500
+mt-2
+"
+
+>
+
+Apni health problem boliye
+
+</p>
+
+
+
+
+
+<button
+
+
+onClick={()=>{
+
+
+setVoiceOpen(false);
+
+setListening(false);
+
+
+}}
+
+
+
+className="
+mt-6
+bg-red-500
+text-white
+px-6
+py-3
+rounded-xl
+"
+
+>
+
+
+Cancel
+
+
+</button>
+
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+}
+
+
+
+
+
+
+
+
+{/* HEADER */}
+
+
+
+<div
+
+className="
+bg-blue-700
+text-white
+p-5
+flex
+items-center
+justify-between
+"
+
+>
+
+
+
+<div
+
+className="
+flex
+items-center
+gap-4
+"
+
+>
+
+
+
+<button
+
+onClick={()=>router.back()}
+
+
+className="
+bg-white/20
+p-2
+rounded-xl
+"
+
+>
+
+
+<ArrowLeft size={22}/>
+
+
+</button>
+
+
+
+
+
+
+
+<Stethoscope size={35}/>
+
+
+
+
+
+
+
+<div>
+
+
+<h1
+
+className="
+text-2xl
+font-bold
+"
+
+>
+
+AarogyaMitra AI
+
+</h1>
+
+
+
+<p
+
+className="
+text-blue-100
+"
+
+>
+
+Healthcare Assistant • Online
+
+</p>
+
+
+</div>
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<button
+
+onClick={clearChat}
+
+
+className="
+bg-white/20
+p-3
+rounded-xl
+"
+
+>
+
+
+🗑️
+
+
+</button>
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+{/* CHAT AREA */}
+
+
+
+<div
+
+className="
+flex-1
+overflow-y-auto
+p-6
+space-y-5
+"
+
+>
+
+
+
+
+
+{
+
+messages.map((msg,index)=>(
+
+
+
+<div
+
+key={index}
+
+className={`
+
+flex
+gap-3
+items-start
+
+${
+msg.role==="user"
+
+?
+
+"justify-end"
+
+:
+
+"justify-start"
+
+}
+
+`}
+
+
+>
+
+
+
+
+
+
+
+{
+
+msg.role==="ai" &&
+
+
+<Bot
+
+size={28}
+
+className="
+text-blue-600
+mt-2
+"
+
+/>
+
+
+
+}
+
+
+
+
+
+
+
+
+
+<div
+
+className={`
+
+max-w-xl
+p-4
+rounded-2xl
+whitespace-pre-wrap
+
+
+${
+msg.role==="user"
+
+
+?
+
+
+"bg-blue-600 text-white"
+
+
+:
+
+
+"bg-white dark:bg-gray-800 dark:text-white"
+
+}
+
+
+`}
+
+>
+
+
+{msg.text}
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+
+{
+
+msg.role==="ai" &&
+
+
+
+<button
+
+
+onClick={()=>speakReply(msg.text)}
+
+
+className="
+text-blue-600
+mt-3
+hover:scale-110
+transition
+"
+
+
+title="Listen"
+
+
+>
+
+
+
+<Volume2 size={22}/>
+
+
+
+</button>
+
+
+
+}
+
+
+
+
+
+
+
+
+{
+
+msg.role==="user" &&
+
+
+<User
+
+size={28}
+
+className="
+mt-2
+"
+
+/>
+
+
+}
+
+
+
+
+
+</div>
+
+
+
+))
+
+
+}
+
+
+
+
+
+
+
+{
+
+loading &&
+
+
+
+<p
+
+className="
+text-gray-500
+"
+
+>
+
+
+AarogyaMitra AI is typing...
+
+
+</p>
+
+
+
+}
+
+
+
+
+
+
+
+<div ref={chatEndRef}/>
+
+
+
+
+</div>
+
+
+<div
+
+className="
+border-t
+bg-white
+dark:bg-gray-900
+p-4
+"
+
+>
+
+
+
+<div
+
+className="
+flex
+items-center
+gap-3
+bg-gray-100
+dark:bg-gray-800
+rounded-2xl
+px-4
+py-2
+"
+
+>
+
+
+
+
+
+
+
+<input
+
+
+value={message}
+
+
+
+onChange={(e)=>setMessage(e.target.value)}
+
+
+
+onKeyDown={(e)=>{
+
+
+if(e.key==="Enter")
+
+sendMessage();
+
+
+}}
+
+
+
+
+placeholder={
+
+
+listening
+
+?
+
+"Sun raha hoon..."
+
+:
+
+"Apni health problem bataiye..."
+
+
+}
+
+
+
+
+className="
+flex-1
+bg-transparent
+outline-none
+px-2
+py-3
+dark:text-white
+"
+
+
+/>
+
+
+
+
+
+
+
+
+
+{/* MIC BUTTON */}
+
+
+
+<button
+
+
+onClick={startListening}
+
+
+
+disabled={loading}
+
+
+
+className="
+text-green-600
+hover:scale-110
+transition
+"
+
+
+title="Voice Input"
+
+
+>
+
+
+<Mic size={27}/>
+
+
+
+</button>
+
+
+
+
+
+
+
+
+
+{/* SEND BUTTON */}
+
+
+
+<button
+
+
+onClick={sendMessage}
+
+
+
+disabled={loading}
+
+
+
+className="
+bg-blue-600
+hover:bg-blue-700
+text-white
+p-3
+rounded-xl
+"
+
+
+>
+
+
+
+<Send size={20}/>
+
+
+
+</button>
+
+
+
+
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+</div>
+
+
+);
+
+
 
 }

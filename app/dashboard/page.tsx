@@ -75,105 +75,53 @@ export default function DashboardPage(){
 
 
 
-  const [user,setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [medicines, setMedicines] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
+  // ================= GET USER & DASHBOARD DATA =================
 
-
-  const [hospitals,setHospitals] = useState<Hospital[]>([]);
-
-
-
-  const [loading,setLoading] = useState(false);
-
-
-
-  const [locationError,setLocationError] = useState("");
-
-
-
-
-
-
-
-
-
-  // ================= GET USER =================
-
-
-
-  useEffect(()=>{
-
-
-
-    const getUser = async()=>{
-
-
-
-      try{
-
-
-
+  useEffect(() => {
+    const getData = async () => {
+      try {
         const token = localStorage.getItem("token");
 
-
-
-        if(!token){
-
+        if (!token) {
           return;
-
         }
 
+        const headers = { Authorization: `Bearer ${token}` };
 
+        const [userRes, medRes, apptRes] = await Promise.all([
+          fetch("/api/user", { headers }),
+          fetch("/api/medicines", { headers }),
+          fetch("/api/appointments", { headers }),
+        ]);
 
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUser(userData.user);
+        }
 
-        const response = await fetch("/api/user",{
+        if (medRes.ok) {
+          const medData = await medRes.json();
+          setMedicines(medData.medicines || []);
+        }
 
-          headers:{
-
-            Authorization:`Bearer ${token}`
-
-          }
-
-        });
-
-
-
-
-
-        const data = await response.json();
-
-
-
-
-
-        setUser(data.user);
-
-
-
-
-
-      }
-
-      catch(error){
-
-
+        if (apptRes.ok) {
+          const apptData = await apptRes.json();
+          setAppointments(apptData.appointments || []);
+        }
+      } catch (error) {
         console.log(error);
-
-
       }
-
-
-
     };
 
-
-
-
-    getUser();
-
-
-
-  },[]);
+    getData();
+  }, []);
 
 
 
@@ -325,18 +273,10 @@ export default function DashboardPage(){
 
 
   const healthScore = user?.health?.healthScore || 0;
-
-
   const heartRate = user?.health?.heartRate || 0;
-
-
   const steps = user?.health?.steps || 0;
-
-
-  const medicineCount = user?.medicines?.length || 0;
-
-
-  const appointmentCount = user?.appointments?.length || 0;
+  const medicineCount = medicines.length || user?.medicines?.length || 0;
+  const appointmentCount = appointments.length || user?.appointments?.length || 0;
 
 
 
@@ -352,12 +292,10 @@ export default function DashboardPage(){
       <div className="
       
         min-h-screen
-        
         bg-gray-100
-        
         dark:bg-gray-900
-        
-        p-6
+        p-4
+        sm:p-6
         
       ">
 
@@ -379,7 +317,8 @@ export default function DashboardPage(){
           
           rounded-3xl
           
-          p-8
+          p-5
+          sm:p-8
           
           text-white
           
@@ -393,8 +332,8 @@ export default function DashboardPage(){
 
           <h1 className="
           
-            text-4xl
-            
+            text-2xl
+            sm:text-4xl
             font-bold
             
           ">
@@ -472,13 +411,11 @@ export default function DashboardPage(){
 
           <div className="
           
-            text-6xl
-            
+            text-4xl
+            sm:text-6xl
             font-bold
-            
             text-blue-600
-            
-            mt-4
+             mt-4
             
           ">
 
@@ -513,60 +450,40 @@ export default function DashboardPage(){
           grid
           grid-cols-1
           sm:grid-cols-2
-          xl:grid-cols-4
+          lg:grid-cols-3
+          xl:grid-cols-5
           gap-6
           mb-10
         ">
-
+          <ActionCard
+            title="Report Scanner 📄"
+            description="AI Lab Report Analysis"
+            link="/report-analyzer"
+          />
 
           <ActionCard
-
             title="AI Chat 🤖"
-
             description="Talk with AarogyaMitra AI"
-
             link="/chat"
-
           />
 
-
-
           <ActionCard
-
             title="Hospital Finder 🏥"
-
             description="Find nearby hospitals"
-
             link="/hospital"
-
           />
 
-
-
           <ActionCard
-
             title="Medicines 💊"
-
             description="Manage your medicines"
-
             link="/medicines"
-
           />
-
-
 
           <ActionCard
-
             title="Appointments 📅"
-
             description="Manage appointments"
-
             link="/appointments"
-
           />
-
-
-
         </div>
 
 
@@ -603,11 +520,12 @@ export default function DashboardPage(){
           <div className="
           
             flex
-            
+            flex-col
+            sm:flex-row
             justify-between
-            
-            items-center
-            
+            items-start
+            sm:items-center
+            gap-4
             mb-6
             
           ">

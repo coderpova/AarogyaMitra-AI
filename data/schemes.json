@@ -1,0 +1,81 @@
+[
+  {
+    "id": 1,
+    "name": "Ayushman Bharat PM-JAY",
+    "description": "Provides cashless health insurance for eligible families.",
+    "benefit": "Health insurance up to ₹5,00,000 per family per year.",
+    "documents": [
+      "Aadhaar Card",
+      "Ration Card",
+      "Mobile Number"
+    ],
+    "officialLink": "https://pmjay.gov.in",
+    "eligibility": {
+      "maxIncome": 300000,
+      "minAge": 0,
+      "gender": "any",
+      "pregnant": false,
+      "seniorCitizen": false,
+      "disability": false
+    }
+  },
+  {
+    "id": 2,
+    "name": "Janani Suraksha Yojana (JSY)",
+    "description": "Promotes institutional delivery for pregnant women.",
+    "benefit": "Financial assistance for safe institutional delivery.",
+    "documents": [
+      "Aadhaar Card",
+      "Pregnancy Registration",
+      "Bank Passbook"
+    ],
+    "officialLink": "https://nhm.gov.in",
+    "eligibility": {
+      "gender": "female",
+      "pregnant": true
+    }
+  },
+  {
+    "id": 3,
+    "name": "Janani Shishu Suraksha Karyakram (JSSK)",
+    "description": "Free delivery and newborn care services.",
+    "benefit": "Free medicines, diagnostics, food and transport.",
+    "documents": [
+      "Aadhaar Card",
+      "Hospital Registration"
+    ],
+    "officialLink": "https://nhm.gov.in",
+    "eligibility": {
+      "gender": "female",
+      "pregnant": true
+    }
+  },
+  {
+    "id": 4,
+    "name": "Rashtriya Bal Swasthya Karyakram (RBSK)",
+    "description": "Health screening for children.",
+    "benefit": "Free health screening and early intervention.",
+    "documents": [
+      "Birth Certificate",
+      "Aadhaar (if available)"
+    ],
+    "officialLink": "https://nhm.gov.in",
+    "eligibility": {
+      "maxAge": 18
+    }
+  },
+  {
+    "id": 5,
+    "name": "National Programme for Health Care of the Elderly (NPHCE)",
+    "description": "Healthcare support for senior citizens.",
+    "benefit": "Free geriatric care and regular health check-ups.",
+    "documents": [
+      "Age Proof",
+      "Aadhaar Card"
+    ],
+    "officialLink": "https://nhm.gov.in",
+    "eligibility": {
+      "minAge": 60
+    }
+  }
+]

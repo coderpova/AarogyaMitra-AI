@@ -5,435 +5,131 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import Cookies from "js-cookie";
-
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-
 import { useAuth } from "@/context/AuthContext";
-
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function Register() {
-
-
   const router = useRouter();
-
   const { login } = useAuth();
-
-
+  const { t } = useLanguage();
 
   const [name, setName] = useState("");
-
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
 
-
-
-
-
   const handleRegister = async () => {
-
-
     if (!name || !email || !password) {
-
-
-      toast.error("Please fill all fields");
-
+      toast.error(t("common.required"));
       return;
-
-
     }
 
-
-
-
     try {
-
-
       const response = await fetch("/api/register", {
-
-
-        method:"POST",
-
-
-        headers:{
-
-
-          "Content-Type":"application/json",
-
-
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-
-
-        body:JSON.stringify({
-
-
+        body: JSON.stringify({
           name,
-
           email,
-
           password,
-
-
         }),
-
-
       });
-
-
-
-
-
 
       const data = await response.json();
 
-
-
-
-
-
-      if(!response.ok){
-
-
-        toast.error(data.message);
-
+      if (!response.ok) {
+        toast.error(data.message || t("common.error"));
         return;
-
-
       }
 
-
-
-
-
-
-
-
-      // AuthContext update
-
       login(
-
         {
-
-          name:data.user.name,
-
-          email:data.user.email
-
-        },
-
+          name: data.user.name,
+          email: data.user.email,
+          ...(data.user.settings ? { settings: data.user.settings } : {}),
+        } as any,
         data.token
-
       );
 
+      Cookies.set("token", data.token, {
+        expires: 7,
+      });
 
-
-
-
-      // Save token in cookie
-
-      Cookies.set(
-
-        "token",
-
-        data.token,
-
-        {
-
-          expires:7,
-
-        }
-
-      );
-
-
-
-
-
-      toast.success("Registration successful");
-
-
-
-
-
+      toast.success(t("auth.registerSuccess"));
       setName("");
-
       setEmail("");
-
       setPassword("");
-
-
-
-
-
       router.push("/dashboard");
-
-
-
-
-
-    }
-
-    catch(error){
-
-
+    } catch (error) {
       console.log(error);
-
-
-      toast.error("Something went wrong");
-
-
+      toast.error(t("common.error"));
     }
-
-
   };
-    return (
 
-    <main
-
-      className="
-      min-h-screen
-      flex
-      items-center
-      justify-center
-      bg-blue-50
-      dark:bg-gray-950
-      px-6
-      "
-
-    >
-
-
-
-
-
-      <div
-
-        className="
-        bg-white
-        dark:bg-gray-900
-        rounded-2xl
-        shadow-xl
-        p-8
-        w-full
-        max-w-md
-        page-animation
-        "
-
-      >
-
-
-
-
-        <h1
-
-          className="
-          text-3xl
-          font-bold
-          text-center
-          text-blue-700
-          dark:text-blue-400
-          "
-
-        >
-
-          Register
-
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-blue-50 dark:bg-gray-950 px-6">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-md page-animation border border-gray-200 dark:border-gray-800">
+        <h1 className="text-3xl font-bold text-center text-blue-700 dark:text-blue-400">
+          {t("auth.registerTitle")}
         </h1>
 
-
-
-
-
-
-
-        <p
-
-          className="
-          text-center
-          text-gray-600
-          dark:text-gray-400
-          mt-2
-          "
-
-        >
-
-          Create your AarogyaMitra AI account
-
+        <p className="text-center text-gray-600 dark:text-gray-400 mt-2 text-sm">
+          {t("auth.registerSubtitle")}
         </p>
-
-
-
-
-
-
-
-
 
         <div className="mt-8">
-
-
-          <label className="block mb-2 font-medium">
-
-            Name
-
+          <label className="block mb-2 font-medium dark:text-white">
+            {t("auth.fullName")}
           </label>
-
-
-
           <Input
-
             type="text"
-
             value={name}
-
-            onChange={(e)=>setName(e.target.value)}
-
-            placeholder="Enter your name"
-
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("auth.fullName")}
           />
-
-
-
         </div>
 
-
-
-
-
-
-
-
-
         <div className="mt-5">
-
-
-          <label className="block mb-2 font-medium">
-
-            Email
-
+          <label className="block mb-2 font-medium dark:text-white">
+            {t("auth.email")}
           </label>
-
-
-
           <Input
-
             type="email"
-
             value={email}
-
-            onChange={(e)=>setEmail(e.target.value)}
-
-            placeholder="Enter your email"
-
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={t("auth.email")}
           />
-
-
-
         </div>
-
-
-
-
-
-
-
-
 
         <div className="mt-5">
-
-
-          <label className="block mb-2 font-medium">
-
-            Password
-
+          <label className="block mb-2 font-medium dark:text-white">
+            {t("auth.password")}
           </label>
-
-
-
           <Input
-
             type="password"
-
             value={password}
-
-            onChange={(e)=>setPassword(e.target.value)}
-
-            placeholder="Create password"
-
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={t("auth.password")}
           />
-
-
-
         </div>
 
-
-
-
-
-
-
-
-
-        <Button
-
-          onClick={handleRegister}
-
-          className="mt-8 w-full h-12"
-
-        >
-
-          Register
-
+        <Button onClick={handleRegister} className="mt-8 w-full h-12 text-base">
+          {t("auth.registerButton")}
         </Button>
 
-
-
-
-
-
-
-
-
-        <p className="text-center mt-6 text-gray-600">
-
-
-          Already have an account?
-
-
+        <p className="text-center mt-6 text-gray-600 dark:text-gray-400 text-sm">
+          {t("auth.alreadyHaveAccount")}{" "}
           <Link
-
             href="/login"
-
-            className="
-            ml-2
-            text-blue-600
-            font-semibold
-            "
-
+            className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
           >
-
-            Login
-
+            {t("auth.loginButton")}
           </Link>
-
-
         </p>
-
-
-
-
-
-
-
       </div>
-
-
-
-
     </main>
-
-
   );
-
-
 }

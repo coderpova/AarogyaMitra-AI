@@ -1,589 +1,176 @@
 import { NextResponse } from "next/server";
-
 import Groq from "groq-sdk";
-
 import connectDB from "@/lib/mongodb";
-
 import Chat from "@/models/chat";
-
+import User from "@/models/User";
 import { getAIContext } from "@/lib/aiContext";
-
-import { extractSymptoms } from "@/lib/symptomExtractor";
-
-
-
+import { detectEmergency, buildDoctorSystemPrompt } from "@/lib/healthAssistant";
 
 const groq = new Groq({
-
   apiKey: process.env.GROQ_API_KEY,
-
 });
 
+export async function POST(req: Request) {
+  try {
+    const {
+      message,
+      userId,
+      language: bodyLang,
+      history,
+      reportContext,
+    } = await req.json();
 
+    if (!message || message.trim() === "") {
+      return NextResponse.json(
+        { message: "Message required" },
+        { status: 400 }
+      );
+    }
 
+    // Determine user's selected language from DB or request payload
+    let selectedLang = bodyLang || "en";
 
+    await connectDB();
 
-// LANGUAGE DETECTOR
+    if (userId && userId !== "guest") {
+      try {
+        let dbUser = null;
+        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+          dbUser = await User.findById(userId);
+        } else {
+          dbUser = await User.findOne({ email: userId });
+        }
 
-function detectLanguage(text:string){
+        if (dbUser?.settings?.language) {
+          selectedLang = dbUser.settings.language;
+        }
+      } catch (userErr) {
+        console.log("User language lookup fallback:", userErr);
+      }
+    }
 
+    console.log("AI Language:", selectedLang);
 
-  const hindiPattern = /[\u0900-\u097F]/;
+    // ── EMERGENCY PRE-CHECK ───────────────────────────────────────────────────
+    const emergency = detectEmergency(message);
+    if (emergency.isEmergency) {
+      const emergencyReply =
+        selectedLang === "hi"
+          ? emergency.responseHi || emergency.responseEn || ""
+          : emergency.responseEn || "";
 
-  const bengaliPattern = /[\u0980-\u09FF]/;
+      // Save emergency interaction to DB
+      try {
+        await Chat.create({
+          userId: userId || "guest",
+          message: message,
+          reply: emergencyReply,
+        });
+      } catch (dbError) {
+        console.log("Mongo Save Error:", dbError);
+      }
 
-  const tamilPattern = /[\u0B80-\u0BFF]/;
+      return NextResponse.json({
+        reply: emergencyReply,
+        emergency: true,
+        suggestions:
+          selectedLang === "hi"
+            ? ["अस्पताल खोजें|112 पर कॉल करें|प्राथमिक उपचार".split("|")[0], "112 पर कॉल करें", "प्राथमिक उपचार"]
+            : ["Find Hospital", "Call 112", "First Aid"],
+      });
+    }
 
-  const teluguPattern = /[\u0C00-\u0C7F]/;
+    // ── AI USER CONTEXT ────────────────────────────────────────────────────────
+    let userContext = "";
+    if (userId && userId !== "guest") {
+      try {
+        userContext = await getAIContext(userId);
+      } catch (error) {
+        console.log("AI Context Error:", error);
+      }
+    }
 
-  const gujaratiPattern = /[\u0A80-\u0AFF]/;
+    // ── BUILD DOCTOR SYSTEM PROMPT ─────────────────────────────────────────────
+    const systemPrompt = buildDoctorSystemPrompt(
+      selectedLang,
+      userContext,
+      reportContext
+    );
 
+    // Build messages array with conversation history
+    const messages: Array<{ role: string; content: string }> = [
+      { role: "system", content: systemPrompt },
+    ];
 
+    // Add recent conversation history (last 10 messages for context)
+    if (history && Array.isArray(history)) {
+      const recentHistory = history.slice(-10);
+      for (const msg of recentHistory) {
+        if (msg.role === "user") {
+          messages.push({ role: "user", content: msg.text });
+        } else if (msg.role === "ai") {
+          messages.push({ role: "assistant", content: msg.text });
+        }
+      }
+    }
 
-  if(hindiPattern.test(text)){
+    // Add current message
+    messages.push({ role: "user", content: message });
 
-    return "Hindi";
+    // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
+    const stream = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: messages as any,
+      temperature: 0.5,
+      max_tokens: 1000,
+      stream: true,
+    });
 
+    const encoder = new TextEncoder();
+    let fullReply = "";
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+              fullReply += content;
+              controller.enqueue(encoder.encode(content));
+            }
+          }
+          controller.close();
+
+          // Save full reply to MongoDB after streaming completes
+          try {
+            await Chat.create({
+              userId: userId || "guest",
+              message: message,
+              reply: fullReply,
+            });
+            console.log("Chat Saved (streamed) ✅");
+          } catch (dbError) {
+            console.log("Mongo Save Error:", dbError);
+          }
+        } catch (error) {
+          console.log("Streaming error:", error);
+          controller.error(error);
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error) {
+    console.log("GROQ ERROR:", error);
+    return NextResponse.json(
+      { message: "AI response failed" },
+      { status: 500 }
+    );
   }
-
-
-
-  if(bengaliPattern.test(text)){
-
-    return "Bengali";
-
-  }
-
-
-
-  if(tamilPattern.test(text)){
-
-    return "Tamil";
-
-  }
-
-
-
-  if(teluguPattern.test(text)){
-
-    return "Telugu";
-
-  }
-
-
-
-  if(gujaratiPattern.test(text)){
-
-    return "Gujarati";
-
-  }
-
-
-
-  return "English";
-
-}
-
-
-
-
-
-
-
-export async function POST(req:Request){
-
-
-try{
-
-
-
-const {
-
-message,
-
-userId
-
-}=await req.json();
-
-
-
-
-
-if(!message || message.trim()===""){
-
-
-return NextResponse.json(
-
-{
-
-message:"Message required"
-
-},
-
-{
-
-status:400
-
-}
-
-);
-
-
-}
-
-
-
-
-
-
-// LANGUAGE DETECTION
-
-
-const userLanguage = detectLanguage(message);
-
-
-
-console.log(
-
-"Detected Language:",
-
-userLanguage
-
-);
-
-
-// NLP SYMPTOM EXTRACTION
-
-const detectedSymptoms = extractSymptoms(message);
-
-
-console.log(
-"Detected Symptoms:",
-detectedSymptoms
-);
-
-
-
-
-
-
-
-
-// ==========================
-// AI USER CONTEXT
-// ==========================
-
-
-let userContext = "";
-
-
-
-if(
-
-userId &&
-
-userId !== "guest"
-
-){
-
-
-
-try{
-
-
-
-userContext = await getAIContext(userId);
-
-
-
-
-console.log(
-"=============================="
-);
-
-
-console.log(
-"AI CONTEXT DATA:"
-);
-
-
-console.log(
-userContext
-);
-
-
-console.log(
-"=============================="
-);
-
-
-
-}
-
-
-
-catch(error){
-
-
-
-console.log(
-
-"AI Context Error:",
-
-error
-
-);
-
-
-
-}
-
-
-
-}
-
-else{
-
-
-console.log(
-
-"Guest User - No Context"
-
-);
-
-
-}
-
-
-
-
-
-
-
-// ==========================
-// GROQ RESPONSE
-// ==========================
-
-
-const chatCompletion = await groq.chat.completions.create({
-
-
-model:"llama-3.1-8b-instant",
-
-
-
-messages:[
-
-
-{
-
-role:"system",
-
-
-content:`
-
-You are AarogyaMitra AI.
-
-You are a multilingual Indian healthcare assistant.
-
-
-
-Detected User Language:
-
-${userLanguage}
-
-
-
-
-LANGUAGE RULES:
-
-
-- Reply only in user's language.
-- Never switch language.
-- English input = English output.
-- Hindi input = Hindi output.
-- Hinglish input = Hinglish output.
-- Regional Indian language = same language.
-
-
-
-PERSONALITY:
-
-
-- Talk like a caring doctor.
-- Be polite.
-- Understand emotions.
-- Explain simply.
-- Ask follow up questions.
-
-
-
-MEDICAL SAFETY:
-
-
-EMERGENCY RULES:
-
-
-- If user mentions chest pain, difficulty breathing, severe shortness of breath, unconsciousness, stroke symptoms, heavy bleeding, or severe allergic reaction:
-  - Treat it as a possible emergency.
-  - Immediately advise seeking emergency medical help.
-  - Do not delay with too many questions.
-  - Ask only short safety questions after emergency advice.
-
-
-Emergency response example:
-
-"Yeh symptoms serious ho sakte hain. Kripya turant emergency medical help lein ya apne najdeeki hospital se contact karein.
-
-Kya aap abhi akela hain? Kya koi aapke paas hai jo help kar sake?"
-
-
-PATIENT DASHBOARD CONTEXT:
-
-
-${userContext}
-
-IMPORTANT PATIENT CONTEXT RULES:
-
-- If patient name is available, address patient politely using their name.
-- Use age, gender, medicines, allergies and health information when relevant.
-- Do not mention hidden database information unnecessarily.
-- Use patient history only when it helps answer the health question.
-- Never reveal that you are reading a database.
-
-
-CONVERSATION STYLE:
-IMPORTANT RESPONSE QUALITY RULES:
-
-
-- Never provide translation after the answer.
-- Never write "Translation:".
-- Always respond naturally like a real Indian doctor.
-- Avoid literal translations from English.
-- Use grammatically correct Hindi.
-- Do not use phrases like "maine dekha hai ki".
-- Prefer natural phrases like:
-  "Aapne bataya hai ki..."
-  "Mujhe samajh aa raha hai..."
-  "Aapko ye problem kab se hai?"
-
-
-SYMPTOM ANALYSIS RULES:
-
-
-When user mentions a symptom:
-
-- First acknowledge the problem politely.
-- Ask relevant follow-up questions.
-- Do not create unnecessary fear.
-- Do not call every symptom serious.
-- Use the user's language naturally.
-
-
-
-For fever symptoms ask:
-
-- Fever kitne din se hai?
-- Temperature kitna gaya tha?
-- Body pain hai?
-- Cough, cold ya throat pain hai?
-- Koi medicine li hai?
-- Age aur existing health conditions consider karo.
-
-
-
-For headache ask:
-
-- Headache kaha ho raha hai?
-- Pain kitna hai (1-10)?
-- Kab se hai?
-- Nausea, vomiting ya dizziness hai?
-
-
-
-For stomach pain ask:
-
-- Dard kaha hai?
-- Kab se hai?
-- Khana khane ke baad badhta hai?
-- Vomiting ya loose motion hai?
-
-
-- Never say "chinta ki baat hai" for common symptoms like mild fever, headache, cold.
-- Use neutral phrases like:
-  "Aapko fever hai, thoda aur detail bataiye."
-  "Fever ke baare me kuch aur information lete hain."
-- Only mention concern when symptoms are severe or emergency signs are present.
-
-
-
-`
-
-},
-
-
-{
-
-role:"user",
-
-content:message
-
-}
-
-
-],
-
-
-temperature:0.5,
-
-
-max_tokens:700
-
-
-});
-const reply =
-
-chatCompletion
-
-.choices[0]
-
-?.message
-
-?.content ||
-
-
-"Sorry, I could not generate response.";
-
-
-
-
-
-
-
-// ==========================
-// SAVE CHAT HISTORY
-// ==========================
-
-
-try{
-
-
-await connectDB();
-
-
-
-await Chat.create({
-
-
-
-userId:userId || "guest",
-
-
-
-message:message,
-
-
-
-reply:reply
-
-
-
-});
-
-
-
-
-
-console.log(
-
-"Chat Saved ✅"
-
-);
-
-
-
-
-}
-
-catch(dbError){
-
-
-
-console.log(
-
-"Mongo Save Error:",
-
-dbError
-
-);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-// RETURN RESPONSE
-
-
-return NextResponse.json({
-
-reply
-
-});
-
-
-
-
-
-
-
-}
-
-catch(error){
-
-
-
-console.log(
-
-"GROQ ERROR:",
-
-error
-
-);
-
-
-
-
-
-return NextResponse.json(
-
-{
-
-message:"AI response failed"
-
-},
-
-{
-
-status:500
-
-}
-
-);
-
-
-
-}
-
-
-
 }

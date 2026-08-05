@@ -5,11 +5,10 @@ import { matchSchemes, UserProfile } from "@/lib/schemeMatcher";
 import { useState, useEffect, useRef } from "react";
 import ResultSection from "@/components/schemes/ResultSection";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function SchemesPage() {
-
-
+  const { t } = useLanguage();
   const [formData, setFormData] = useState<UserProfile>({
     age: 0,
     gender: "",
@@ -21,168 +20,60 @@ export default function SchemesPage() {
     disability: false,
   });
 
-
-
-  // MongoDB schemes
   const [schemes, setSchemes] = useState<any[]>([]);
-
-
-
-  // Matched schemes
   const [eligibleSchemes, setEligibleSchemes] = useState<any[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
 
-
-
-  // Fetch schemes from MongoDB
-
-
-    useEffect(() => {
-
-      const fetchSchemes = async () => {
-
-        try {
-
-          const response = await fetch("/api/schemes");
-
-          const data = await response.json();
-
-          console.log("Mongo Schemes:", data.schemes);
-
-          setSchemes(data.schemes || []);
-
-        } catch(error){
-
-          console.log(error);
-
-        }
-
-      };
-
-      fetchSchemes();
-
-    }, []);
-
-
-
-
-  // Check eligibility
+  useEffect(() => {
+    const fetchSchemes = async () => {
+      try {
+        const response = await fetch("/api/schemes");
+        const data = await response.json();
+        setSchemes(data.schemes || []);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchSchemes();
+  }, []);
 
   const checkEligibility = () => {
+    const result = matchSchemes(formData, schemes);
+    setEligibleSchemes(result);
 
-      const result = matchSchemes(
-        formData,
-        schemes
-      );
-
-
-      setEligibleSchemes(result);
-
-
-      setTimeout(() => {
-
-        resultRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-
-      }, 100);
-
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   };
 
-
-
-
-
   return (
-
     <DashboardLayout>
-
-
-      <div className="page-animation">
-
-
-
+      <div className="page-animation space-y-6">
         {/* Header */}
-
-        <div
-          className="
-            bg-blue-700
-            text-white
-            rounded-3xl
-            p-8
-          "
-        >
-
-
-          <h1 className="text-4xl font-bold">
-
-            Government Health Schemes
-
+        <div className="bg-blue-700 text-white rounded-3xl p-8 shadow-lg">
+          <h1 className="text-3xl sm:text-4xl font-bold">
+            {t("schemes.title")}
           </h1>
-
-
-          <p className="text-blue-100 mt-2">
-
-            Find schemes based on your eligibility.
-
-          </p>
-
-
+          <p className="text-blue-100 mt-2">{t("schemes.subtitle")}</p>
         </div>
-
-
-
-
-
 
         {/* Eligibility Form */}
-
         <div className="mt-8">
-
-
           <EligibilityForm
-
             formData={formData}
-
             setFormData={setFormData}
-
             onSubmit={checkEligibility}
-
           />
-
-
         </div>
-
-
-
-
-
 
         {/* Results */}
-
-        <div 
-          ref={resultRef}
-          className="mt-10"
-        >
-
-
-          <ResultSection
-
-            schemes={eligibleSchemes}
-
-          />
-
-
+        <div ref={resultRef} className="mt-10">
+          <ResultSection schemes={eligibleSchemes} />
         </div>
-
-
-
       </div>
-
-
     </DashboardLayout>
-
   );
-
 }

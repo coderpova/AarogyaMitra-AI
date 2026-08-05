@@ -24,3 +24,204 @@
   }
 
 }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+/* Chat message animations */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.chat-msg-ai {
+  animation: slideInLeft 0.35s ease-out;
+}
+.chat-msg-user {
+  animation: slideInRight 0.35s ease-out;
+}
+.fade-in-up {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+/* Typing dots animation */
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.typing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Pulse ring for voice */
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
+  70% { box-shadow: 0 0 0 20px rgba(59,130,246,0); }
+  100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+}
+.pulse-ring {
+  animation: pulseRing 1.8s infinite;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar scrollbar */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 999px;
+}
+
+/* Smooth transitions for all interactive elements */
+a, button {
+  transition: all 0.2s ease;
+}
+
+/* Health score circle animation */
+@keyframes circleGrow {
+  from { stroke-dashoffset: 314; }
+}
+.circle-progress {
+  animation: circleGrow 1.5s ease-out forwards;
+}
+
+/* Streaming cursor (blinking block at end of streaming text) */
+@keyframes blinkCursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: "▋";
+  display: inline-block;
+  animation: blinkCursor 0.8s infinite;
+  color: #3b82f6;
+  margin-left: 2px;
+  font-weight: bold;
+}
+
+/* Emergency pulse — red border pulse for emergency messages */
+@keyframes emergencyPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+.emergency-pulse {
+  animation: emergencyPulse 2s infinite;
+  border: 2px solid rgb(239,68,68);
+}
+
+/* Chat history drawer slide-in */
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.chat-history-drawer {
+  animation: drawerSlideIn 0.3s ease-out;
+}
+
+/* Suggestion chip hover */
+.suggestion-chip {
+  transition: all 0.2s ease;
+}
+.suggestion-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59,130,246,0.2);
+}
+
+/* Integration action button hover */
+.integration-btn {
+  transition: all 0.2s ease;
+}
+.integration-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Emergency button — red gradient with continuous subtle pulse */
+@keyframes emergencyBtnPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+.emergency-btn {
+  animation: emergencyBtnPulse 2.5s infinite;
+}
+
+/* Goal ring — circular progress animation for daily goals */
+@keyframes goalRingGrow {
+  from { stroke-dashoffset: 283; }
+}
+.goal-ring {
+  animation: goalRingGrow 1.2s ease-out forwards;
+}
+
+/* Timeline vertical line */
+.timeline-line::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #3b82f6, #e5e7eb);
+}
+
+/* Countdown banner for report auto-redirect */
+@keyframes countdownPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.countdown-banner {
+  animation: countdownPulse 1s infinite;
+}
+
+/* Abnormal row tint for report parameters */
+.abnormal-row {
+  background-color: rgba(251,191,36,0.08);
+}
+.abnormal-row-critical {
+  background-color: rgba(239,68,68,0.1);
+}
+.dark .abnormal-row {
+  background-color: rgba(251,191,36,0.12);
+}
+.dark .abnormal-row-critical {
+  background-color: rgba(239,68,68,0.15);
+}

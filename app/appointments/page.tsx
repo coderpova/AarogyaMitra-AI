@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface AppointmentItem {
   _id: string;
@@ -25,6 +26,7 @@ interface AppointmentItem {
 }
 
 export default function AppointmentsPage() {
+  const { t } = useLanguage();
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -63,7 +65,7 @@ export default function AppointmentsPage() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Unable to fetch appointments");
+      toast.error(t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export default function AppointmentsPage() {
       !formData.date ||
       !formData.time
     ) {
-      toast.error("Please fill all required fields");
+      toast.error(t("common.required"));
       return;
     }
 
@@ -95,7 +97,7 @@ export default function AppointmentsPage() {
       const data = await res.json();
 
       if (res.ok) {
-        toast.success("Appointment Booked Successfully!");
+        toast.success(t("appointments.bookedSuccess"));
         setAppointments(data.appointments || []);
         setFormData({
           patientName: "",
@@ -110,7 +112,7 @@ export default function AppointmentsPage() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong");
+      toast.error(t("common.error"));
     }
   };
 
@@ -128,14 +130,14 @@ export default function AppointmentsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(`Appointment marked as ${newStatus}`);
+        toast.success(`Appointment status updated`);
         setAppointments(data.appointments || []);
       } else {
         toast.error(data.message || "Update failed");
       }
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update status");
+      toast.error(t("common.error"));
     }
   };
 
@@ -153,21 +155,21 @@ export default function AppointmentsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success("Appointment Deleted");
+        toast.success("Appointment deleted");
         setAppointments(data.appointments || []);
       } else {
         toast.error(data.message || "Delete failed");
       }
     } catch (error) {
       console.error(error);
-      toast.error("Delete failed");
+      toast.error(t("common.error"));
     }
   };
 
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="p-10 text-xl font-medium">Loading Appointments...</div>
+        <div className="p-10 text-xl font-medium">{t("common.loading")}</div>
       </DashboardLayout>
     );
   }
@@ -177,23 +179,23 @@ export default function AppointmentsPage() {
       <div className="page-animation">
         {/* Header */}
         <div className="bg-blue-700 text-white rounded-3xl p-8 shadow-lg">
-          <h1 className="text-3xl sm:text-4xl font-bold">My Appointments 📅</h1>
-          <p className="text-blue-100 mt-2">
-            Schedule and manage your doctor consultations seamlessly.
-          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold">
+            {t("appointments.title")}
+          </h1>
+          <p className="text-blue-100 mt-2">{t("appointments.subtitle")}</p>
         </div>
 
         {/* Action Bar */}
         <div className="flex justify-between items-center mt-6">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-            Upcoming Consultations ({appointments.length})
+            {t("dashboard.upcomingAppointments")} ({appointments.length})
           </h2>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition hover:scale-105 shadow-md"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition hover:scale-105 shadow-md font-medium"
           >
             <Plus size={20} />
-            {showForm ? "Cancel" : "Book Appointment"}
+            {showForm ? t("common.cancel") : t("appointments.bookTitle")}
           </button>
         </div>
 
@@ -202,7 +204,7 @@ export default function AppointmentsPage() {
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-xl p-8 mt-6 grid gap-5 md:grid-cols-2">
             <div>
               <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Patient Name
+                {t("auth.fullName")}
               </label>
               <input
                 type="text"
@@ -217,7 +219,7 @@ export default function AppointmentsPage() {
 
             <div>
               <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Doctor Name
+                {t("appointments.doctorName")}
               </label>
               <input
                 type="text"
@@ -232,7 +234,7 @@ export default function AppointmentsPage() {
 
             <div>
               <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Hospital / Clinic
+                {t("appointments.hospitalName")}
               </label>
               <input
                 type="text"
@@ -247,7 +249,7 @@ export default function AppointmentsPage() {
 
             <div>
               <label className="block mb-1 text-sm font-medium dark:text-gray-200">
-                Date
+                {t("appointments.date")}
               </label>
               <input
                 type="date"
@@ -278,13 +280,13 @@ export default function AppointmentsPage() {
                 onClick={() => setShowForm(false)}
                 className="px-5 py-3 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleBookAppointment}
                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition"
               >
-                Confirm Appointment
+                {t("appointments.bookBtn")}
               </button>
             </div>
           </div>
@@ -296,7 +298,7 @@ export default function AppointmentsPage() {
             appointments.map((appointment) => (
               <div
                 key={appointment._id}
-                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-lg p-6 transition hover:shadow-2xl hover:-translate-y-1 flex flex-col justify-between"
+                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-lg p-6 transition hover:shadow-2xl flex flex-col justify-between"
               >
                 <div>
                   <div className="flex justify-between items-start">
@@ -317,7 +319,7 @@ export default function AppointmentsPage() {
                     <button
                       onClick={() => deleteAppointment(appointment._id)}
                       className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
-                      title="Delete Appointment"
+                      title={t("common.delete")}
                     >
                       <Trash2 size={18} />
                     </button>
@@ -349,7 +351,11 @@ export default function AppointmentsPage() {
                         : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
                     }`}
                   >
-                    {appointment.status}
+                    {appointment.status === "Completed"
+                      ? t("appointments.statusConfirmed")
+                      : appointment.status === "Cancelled"
+                      ? t("appointments.statusCancelled")
+                      : t("appointments.statusPending")}
                   </span>
 
                   <div className="flex gap-2">
@@ -360,7 +366,7 @@ export default function AppointmentsPage() {
                         }
                         className="text-xs bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800 hover:bg-green-100 flex items-center gap-1 transition"
                       >
-                        <CheckCircle size={14} /> Complete
+                        <CheckCircle size={14} /> {t("common.confirm")}
                       </button>
                     )}
                     {appointment.status !== "Cancelled" && (
@@ -370,7 +376,7 @@ export default function AppointmentsPage() {
                         }
                         className="text-xs bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 hover:bg-red-100 flex items-center gap-1 transition"
                       >
-                        <XCircle size={14} /> Cancel
+                        <XCircle size={14} /> {t("common.cancel")}
                       </button>
                     )}
                   </div>
@@ -381,13 +387,13 @@ export default function AppointmentsPage() {
             <div className="md:col-span-2 text-center py-12 bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800">
               <Calendar className="mx-auto text-gray-400 mb-3" size={48} />
               <p className="text-gray-600 dark:text-gray-400 text-lg">
-                No appointments booked yet.
+                {t("appointments.noAppointments")}
               </p>
               <button
                 onClick={() => setShowForm(true)}
                 className="mt-4 bg-blue-600 text-white px-6 py-2.5 rounded-xl hover:bg-blue-700 transition"
               >
-                Book Your First Appointment
+                {t("appointments.bookTitle")}
               </button>
             </div>
           )}

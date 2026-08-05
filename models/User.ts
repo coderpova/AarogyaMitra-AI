@@ -31,8 +31,28 @@ const UserSchema = new Schema(
 
     type:String,
 
-    required:true,
+    default:"",
 
+  },
+
+  googleId: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+
+  authProvider: {
+    type: String,
+    enum: ["local", "google"],
+    default: "local",
+  },
+
+  gmail: {
+    accessToken: { type: String, default: "" },
+    refreshToken: { type: String, default: "" },
+    tokenExpiry: { type: Date, default: null },
+    connected: { type: Boolean, default: false },
+    lastSync: { type: Date, default: null },
   },
 
 
@@ -379,9 +399,15 @@ const UserSchema = new Schema(
     }
 
 
-  ]
+  ],
 
 
+  settings: {
+    language: {
+      type: String,
+      default: "en",
+    },
+  },
 
 },
 

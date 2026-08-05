@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 import { Toaster } from "react-hot-toast";
 
@@ -52,10 +53,12 @@ export default function RootLayout({
 
 
           <AuthProvider>
+            
+            <LanguageProvider>
 
+              {children}
 
-            {children}
-
+            </LanguageProvider>
 
           </AuthProvider>
 

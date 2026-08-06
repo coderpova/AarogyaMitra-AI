@@ -79,7 +79,7 @@ export default function Sidebar({
 
       <aside
         className={`
-          fixed md:static z-50 top-0 left-0
+          fixed z-50 top-0 left-0
           h-screen w-72
           bg-gradient-to-b from-blue-700 to-blue-800
           dark:from-gray-950 dark:to-gray-900
@@ -98,7 +98,7 @@ export default function Sidebar({
               </div>
               <div>
                 <h1 className="text-lg font-bold leading-tight">AarogyaMitra</h1>
-                <p className="text-blue-200 text-xs">AI Healthcare</p>
+                <p className="text-blue-200 text-xs">{t("navExt.aiHealthcare")}</p>
               </div>
             </div>
             <button

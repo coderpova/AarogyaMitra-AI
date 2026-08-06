@@ -1,27 +1,28 @@
+"use client";
+import { useLanguage } from "@/context/LanguageContext";
 import { Star } from "lucide-react";
 
-const testimonials = [
+
+export default function Testimonials() {
+  const { t } = useLanguage();
+  const testimonials = [
   {
-    name: "Ramesh Kumar",
-    role: "Farmer, Uttar Pradesh",
-    review:
-      "AarogyaMitra AI helped me understand my symptoms in Hindi and guided me to the nearest hospital.",
+    name: t("homeExt.testiName1"),
+    role: t("homeExt.testiRole1"),
+    review: t("homeExt.testiDesc1"),
   },
   {
-    name: "Priya Sharma",
-    role: "Student, Delhi",
-    review:
-      "The medicine reminder and AI assistant are extremely useful for my family.",
+    name: t("homeExt.testiName2"),
+    role: t("homeExt.testiRole2"),
+    review: t("homeExt.testiDesc2"),
   },
   {
-    name: "Anita Devi",
-    role: "ASHA Worker",
-    review:
-      "This platform makes healthcare information easy to understand for villagers.",
+    name: t("homeExt.testiName3"),
+    role: t("homeExt.testiRole3"),
+    review: t("homeExt.testiDesc3"),
   },
 ];
 
-export default function Testimonials() {
   return (
     <section
       className="

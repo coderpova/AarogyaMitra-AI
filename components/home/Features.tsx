@@ -1,45 +1,43 @@
+"use client";
+import { useLanguage } from "@/context/LanguageContext";
 import Card from "@/components/ui/Card";
 
-const features = [
+
+export default function Features() {
+  const { t } = useLanguage();
+  const features = [
   {
-    title: "AI Health Assistant",
-    description:
-      "Get instant healthcare guidance using AI in your preferred language.",
+    title: t("homeExt.featTitle1"),
+    description: t("homeExt.featDesc1"),
     icon: "🤖",
   },
   {
-    title: "Voice Support",
-    description:
-      "Talk with AI using voice for easy healthcare access.",
+    title: t("homeExt.featTitle2"),
+    description: t("homeExt.featDesc2"),
     icon: "🎤",
   },
   {
-    title: "Hospital Finder",
-    description:
-      "Find nearby hospitals and healthcare centers quickly.",
+    title: t("homeExt.featTitle3"),
+    description: t("homeExt.featDesc3"),
     icon: "🏥",
   },
   {
-    title: "Government Schemes",
-    description:
-      "Know about healthcare schemes and eligibility.",
+    title: t("homeExt.featTitle4"),
+    description: t("homeExt.featDesc4"),
     icon: "📄",
   },
   {
-    title: "Medicine Reminder",
-    description:
-      "Never miss your important medicines.",
+    title: t("homeExt.featTitle5"),
+    description: t("homeExt.featDesc5"),
     icon: "💊",
   },
   {
-    title: "Prescription Scanner",
-    description:
-      "Scan prescriptions and extract medicine details.",
+    title: t("homeExt.featTitle6"),
+    description: t("homeExt.featDesc6"),
     icon: "📷",
   },
 ];
 
-export default function Features() {
   return (
     <section
       id="features"

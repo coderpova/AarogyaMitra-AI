@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "@/context/LanguageContext";
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -7,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 
 
 export default function CTA() {
+  const { t } = useLanguage();
 
 
   const {user} = useAuth();
@@ -31,7 +33,7 @@ export default function CTA() {
 
         <h2 className="text-5xl font-bold">
 
-          Ready to Experience AI Healthcare?
+          {t('homeExt.ctaTitle')}
 
         </h2>
 
@@ -76,7 +78,7 @@ export default function CTA() {
 
               >
 
-                Go To Dashboard
+                {t('homeExt.goDashboard')}
 
                 <ArrowRight size={20}/>
 
@@ -114,7 +116,7 @@ export default function CTA() {
 
               >
 
-                Get Started
+                {t('homeExt.getStarted')}
 
                 <ArrowRight size={20}/>
 

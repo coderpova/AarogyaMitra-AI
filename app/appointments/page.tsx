@@ -61,7 +61,7 @@ export default function AppointmentsPage() {
       if (res.ok) {
         setAppointments(data.appointments || []);
       } else {
-        toast.error(data.message || "Failed to load appointments");
+        toast.error(data.message || t("appointmentsExt.errLoad"));
       }
     } catch (error) {
       console.error(error);
@@ -108,7 +108,7 @@ export default function AppointmentsPage() {
         });
         setShowForm(false);
       } else {
-        toast.error(data.message || "Booking failed");
+        toast.error(data.message || t("appointmentsExt.errBook"));
       }
     } catch (error) {
       console.error(error);
@@ -133,7 +133,7 @@ export default function AppointmentsPage() {
         toast.success(`Appointment status updated`);
         setAppointments(data.appointments || []);
       } else {
-        toast.error(data.message || "Update failed");
+        toast.error(data.message || t("appointmentsExt.errUpdate"));
       }
     } catch (error) {
       console.error(error);
@@ -155,10 +155,10 @@ export default function AppointmentsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success("Appointment deleted");
+        toast.success(t("appointmentsExt.succDelete"));
         setAppointments(data.appointments || []);
       } else {
-        toast.error(data.message || "Delete failed");
+        toast.error(data.message || t("appointmentsExt.errDelete"));
       }
     } catch (error) {
       console.error(error);
@@ -208,7 +208,7 @@ export default function AppointmentsPage() {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Rahul Sharma"
+                placeholder={t("appointmentsExt.phPatient")}
                 value={formData.patientName}
                 onChange={(e) =>
                   setFormData({ ...formData, patientName: e.target.value })
@@ -223,7 +223,7 @@ export default function AppointmentsPage() {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Dr. Priya Singh"
+                placeholder={t("appointmentsExt.phDoctor")}
                 value={formData.doctorName}
                 onChange={(e) =>
                   setFormData({ ...formData, doctorName: e.target.value })
@@ -238,7 +238,7 @@ export default function AppointmentsPage() {
               </label>
               <input
                 type="text"
-                placeholder="e.g. AIIMS Delhi"
+                placeholder={t("appointmentsExt.phHospital")}
                 value={formData.hospital}
                 onChange={(e) =>
                   setFormData({ ...formData, hospital: e.target.value })
@@ -311,7 +311,7 @@ export default function AppointmentsPage() {
                           {appointment.doctorName}
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Patient: {appointment.patientName}
+                          {t("appointmentsExt.patientPrefix", { name: appointment.patientName })}
                         </p>
                       </div>
                     </div>

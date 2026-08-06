@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "@/context/LanguageContext";
 
 import SchemeCard from "./SchemeCard";
 
@@ -9,6 +10,7 @@ interface Props {
 export default function ResultSection({
   schemes,
 }: Props) {
+  const { t } = useLanguage();
 
   return (
 
@@ -56,9 +58,9 @@ export default function ResultSection({
               dark:text-gray-400
               mt-3
             ">
-              Fill the eligibility form and click
+              {t("schemesExt.fillForm")}
               <strong> Check Eligibility </strong>
-              to find suitable government schemes.
+              {t("schemesExt.toFind")}
             </p>
 
 

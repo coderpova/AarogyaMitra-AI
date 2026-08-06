@@ -18,7 +18,7 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex transition-colors duration-300">
       <Sidebar open={open} setOpen={setOpen} />
 
-      <div className="flex-1 flex flex-col min-w-0 text-gray-900 dark:text-white">
+      <div className="flex-1 flex flex-col min-w-0 text-gray-900 dark:text-white md:ml-72">
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3 shadow-sm">
           <button

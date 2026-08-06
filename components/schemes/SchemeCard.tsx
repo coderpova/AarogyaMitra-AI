@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "@/context/LanguageContext";
 
 import {
   CheckCircle,
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function SchemeCard({ scheme }: Props) {
+  const { t } = useLanguage();
 
   return (
 
@@ -74,7 +76,7 @@ export default function SchemeCard({ scheme }: Props) {
 
           <BadgeCheck size={18}/>
 
-          Eligible
+          {t("schemesExt.eligibleBadge")}
 
         </div>
 
@@ -148,7 +150,7 @@ export default function SchemeCard({ scheme }: Props) {
           "
         >
 
-          {scheme.benefit || "Benefits available under this scheme"}
+          {scheme.benefit || t("schemesExt.benefitsDesc")}
 
         </div>
 
@@ -215,7 +217,7 @@ export default function SchemeCard({ scheme }: Props) {
 
               <p className="text-gray-500">
 
-                Documents information not available.
+                {t("schemesExt.noDocs")}
 
               </p>
 
@@ -258,7 +260,7 @@ export default function SchemeCard({ scheme }: Props) {
             "
           >
 
-            Apply / Official Website
+            {t("schemesExt.applyWeb")}
 
 
             <ExternalLink size={18}/>

@@ -1,9 +1,12 @@
+"use client";
+import { useLanguage } from "@/context/LanguageContext";
 export default function Statistics() {
+  const { t } = useLanguage();
   const stats = [
-    { number: "50K+", label: "Users Supported" },
-    { number: "12+", label: "Languages" },
-    { number: "98%", label: "AI Accuracy" },
-    { number: "24/7", label: "Availability" },
+    { number: "50K+", label: t("homeExt.statUsers") },
+    { number: "12+", label: t("homeExt.statLangs") },
+    { number: "98%", label: t("homeExt.statAcc") },
+    { number: "24/7", label: t("homeExt.statAvail") },
   ];
 
   return (

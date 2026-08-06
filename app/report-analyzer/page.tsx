@@ -74,7 +74,6 @@ export default function ReportAnalyzerPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<"scan" | "history">("scan");
-  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     fetchHistory();
@@ -102,7 +101,7 @@ export default function ReportAnalyzerPage() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size must be under 5MB");
+      toast.error(t("reportAnalyzerExt.errSize"));
       return;
     }
 
@@ -111,7 +110,7 @@ export default function ReportAnalyzerPage() {
       const result = reader.result as string;
       setImageBase64(result);
       setImagePreview(result);
-      toast.success("Medical report image attached!");
+      toast.success(t("reportAnalyzerExt.succAttach"));
     };
     reader.readAsDataURL(file);
   };
@@ -120,7 +119,7 @@ export default function ReportAnalyzerPage() {
     const text = textToUse !== undefined ? textToUse : reportText;
 
     if (!text.trim() && !imageBase64) {
-      toast.error("Please upload a report image or select a sample report text.");
+      toast.error(t("reportAnalyzerExt.errUpload"));
       return;
     }
 
@@ -187,26 +186,6 @@ export default function ReportAnalyzerPage() {
     sessionStorage.setItem("reportContext", JSON.stringify(reportData));
     router.push("/chat?report=1");
   };
-
-  // Auto-redirect to AI Doctor consultation after analysis completes
-  useEffect(() => {
-    if (analysis && !loading) {
-      setRedirectCountdown(5);
-      const interval = setInterval(() => {
-        setRedirectCountdown((prev) => {
-          if (prev === null) return null;
-          if (prev <= 1) {
-            clearInterval(interval);
-            consultAIDoctor();
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysis, loading]);
 
   const clearAll = () => {
     setReportText("");
@@ -407,7 +386,7 @@ export default function ReportAnalyzerPage() {
                     <div className="emergency-pulse bg-red-50 dark:bg-red-950/40 rounded-2xl p-4 flex items-start gap-3">
                       <Siren size={24} className="text-red-600 shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-bold text-red-700 dark:text-red-300 text-sm">Emergency Warning</h3>
+                        <h3 className="font-bold text-red-700 dark:text-red-300 text-sm">{t("reportAnalyzerExt.warnEmergency")}</h3>
                         <p className="text-red-600 dark:text-red-400 text-sm mt-1">{analysis.emergencyWarning}</p>
                       </div>
                     </div>
@@ -583,22 +562,6 @@ export default function ReportAnalyzerPage() {
                           </li>
                         ))}
                       </ol>
-                    </div>
-                  )}
-
-                  {/* Auto-redirect Countdown */}
-                  {redirectCountdown !== null && redirectCountdown > 0 && (
-                    <div className="countdown-banner bg-blue-50 dark:bg-blue-950/40 rounded-2xl p-4 flex items-center justify-between gap-4 border border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300 font-medium">
-                        <Timer size={18} className="animate-pulse" />
-                        Redirecting to AI Doctor consultation in {redirectCountdown}s...
-                      </div>
-                      <button
-                        onClick={() => setRedirectCountdown(null)}
-                        className="text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600"
-                      >
-                        Cancel
-                      </button>
                     </div>
                   )}
 

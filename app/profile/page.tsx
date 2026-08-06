@@ -23,6 +23,7 @@ import { useLanguage } from "@/context/LanguageContext";
 
 /* ── BMI Calculator Component ─────────────────────────────────────────── */
 function BMICalculator() {
+  const { t } = useLanguage();
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [bmi, setBmi] = useState<number | null>(null);
@@ -31,7 +32,7 @@ function BMICalculator() {
     const h = parseFloat(height) / 100; // cm to m
     const w = parseFloat(weight);
     if (!h || !w || h <= 0 || w <= 0) {
-      toast.error("Please enter valid height and weight");
+      toast.error(t("profileExt.errBmi"));
       return;
     }
     const result = w / (h * h);
@@ -39,10 +40,10 @@ function BMICalculator() {
   };
 
   const getBMICategory = (bmi: number) => {
-    if (bmi < 18.5) return { label: "Underweight", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: "Consider a balanced diet with more calories. Consult a nutritionist." };
-    if (bmi < 25) return { label: "Normal", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: "Great! Maintain your healthy lifestyle with regular exercise and balanced diet." };
-    if (bmi < 30) return { label: "Overweight", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: "Consider increasing physical activity and reducing processed food intake." };
-    return { label: "Obese", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: "Please consult a doctor or dietitian for a personalized weight management plan." };
+    if (bmi < 18.5) return { label: t("profileExt.bmiUnder"), color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: t("profileExt.bmiUnderAdv") };
+    if (bmi < 25) return { label: t("profileExt.bmiNorm"), color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: t("profileExt.bmiNormAdv") };
+    if (bmi < 30) return { label: t("profileExt.bmiOver"), color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: t("profileExt.bmiOverAdv") };
+    return { label: t("profileExt.bmiObese"), color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: t("profileExt.bmiObeseAdv") };
   };
 
   return (
@@ -57,20 +58,20 @@ function BMICalculator() {
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-medium dark:text-gray-200 mb-1">Height (cm)</label>
+          <label className="block text-sm font-medium dark:text-gray-200 mb-1">{t("profileExt.height")}</label>
           <input
             type="number"
-            placeholder="e.g. 170"
+            placeholder={t("profileExt.phHeight")}
             value={height}
             onChange={(e) => setHeight(e.target.value)}
             className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium dark:text-gray-200 mb-1">Weight (kg)</label>
+          <label className="block text-sm font-medium dark:text-gray-200 mb-1">{t("profileExt.weight")}</label>
           <input
             type="number"
-            placeholder="e.g. 65"
+            placeholder={t("profileExt.phWeight")}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -97,7 +98,7 @@ function BMICalculator() {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                {getBMICategory(bmi).label === "Normal" ? (
+                {getBMICategory(bmi).label === t("profileExt.bmiNorm") ? (
                   <CheckCircle size={18} className="text-green-600" />
                 ) : (
                   <AlertTriangle size={18} className={getBMICategory(bmi).color} />
@@ -156,7 +157,7 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        toast.error("Please login first");
+        toast.error(t("profileExt.errLogin"));
         return;
       }
 
@@ -290,10 +291,10 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="">Select Gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="">{t("profileExt.selGender")}</option>
+                <option value="Male">{t("profileExt.genderMale")}</option>
+                <option value="Female">{t("profileExt.genderFemale")}</option>
+                <option value="Other">{t("profileExt.genderOther")}</option>
               </select>
             </div>
 
@@ -306,7 +307,7 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
                 className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="">Select Blood Group</option>
+                <option value="">{t("profileExt.selBlood")}</option>
                 {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
                   <option key={bg} value={bg}>{bg}</option>
                 ))}

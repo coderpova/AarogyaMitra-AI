@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Mic,
   Volume2,
+  Square,
   Trash2,
   Stethoscope,
   WifiOff,
@@ -83,28 +84,32 @@ function renderMarkdown(text: string) {
 }
 
 /* ── Quick Health Actions ─────────────────────────────────────────────────── */
-const QUICK_ACTIONS = [
-  { icon: Stethoscope, label: "Symptom Check", prompt: "I have some symptoms I want to discuss." },
-  { icon: Pill, label: "Medicine Info", prompt: "Tell me about the medicine I should take for common ailments." },
-  { icon: Activity, label: "BMI Calculator", prompt: "Help me calculate my BMI." },
-  { icon: HeartPulse, label: "First Aid", prompt: "What should I do in a medical emergency?" },
-  { icon: Apple, label: "Diet & Nutrition", prompt: "Give me a healthy diet plan for my health." },
-  { icon: Brain, label: "Mental Health", prompt: "I'm feeling stressed/anxious. Can you help?" },
-  { icon: Baby, label: "Child Health", prompt: "I need guidance on child health and vaccination." },
-  { icon: Syringe, label: "Vaccination", prompt: "What vaccinations should I get?" },
-];
 
 export default function ChatPage() {
+  
+
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { t, speechLang, language } = useLanguage();
 
+  const QUICK_ACTIONS = [
+    { icon: Stethoscope, label: t("chatExt.actSymptom"), prompt: t("chatExt.promptSymptom") },
+    { icon: Pill, label: t("chatExt.actMed"), prompt: t("chatExt.promptMed") },
+    { icon: Activity, label: t("chatExt.actBmi"), prompt: t("chatExt.promptBmi") },
+    { icon: HeartPulse, label: t("chatExt.actFirstAid"), prompt: t("chatExt.promptFirstAid") },
+    { icon: Apple, label: t("chatExt.actDiet"), prompt: t("chatExt.promptDiet") },
+    { icon: Brain, label: t("chatExt.actMental"), prompt: t("chatExt.promptMental") },
+    { icon: Baby, label: t("chatExt.actChild"), prompt: t("chatExt.promptChild") },
+    { icon: Syringe, label: t("chatExt.actVac"), prompt: t("chatExt.promptVac") },
+  ];
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
@@ -197,6 +202,13 @@ export default function ChatPage() {
   // AI VOICE REPLY (TTS)
   const speakReply = (text: string) => {
     if (typeof window === "undefined") return;
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
     const cleanText = text
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/\*(.*?)\*/g, "$1")
@@ -209,7 +221,12 @@ export default function ChatPage() {
     speech.rate = 0.9;
     speech.pitch = 1;
     speech.lang = speechLang;
+
+    speech.onend = () => setIsSpeaking(false);
+    speech.onerror = () => setIsSpeaking(false);
+
     window.speechSynthesis.cancel();
+    setIsSpeaking(true);
     window.speechSynthesis.speak(speech);
   };
 
@@ -319,7 +336,7 @@ export default function ChatPage() {
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Speech recognition is not supported. Please use Chrome.");
+      alert(t("chatExt.speechNotSupp"));
       return;
     }
 
@@ -425,7 +442,6 @@ export default function ChatPage() {
             };
             return updated;
           });
-          speakReply(cleanText);
         } else {
           // Streaming response
           const reader = res.body!.getReader();
@@ -466,7 +482,6 @@ export default function ChatPage() {
             };
             return updated;
           });
-          speakReply(cleanText);
         }
       } else {
         // ── OFFLINE PATH ──────────────────────────────────────────────────────
@@ -490,7 +505,6 @@ export default function ChatPage() {
           };
           return updated;
         });
-        speakReply(cleanText);
 
         if (user?.email) {
           saveOfflineChat(user.email, userText, cleanText);
@@ -523,7 +537,6 @@ export default function ChatPage() {
               isStreaming: false,
             },
           ]);
-          speakReply(cleanText);
 
           if (user?.email) {
             saveOfflineChat(user.email, userText, cleanText);
@@ -656,7 +669,7 @@ export default function ChatPage() {
               ) : (
                 <div className="text-center py-10">
                   <History className="mx-auto text-gray-300 dark:text-gray-600 mb-3" size={40} />
-                  <p className="text-sm text-gray-400">No chat history yet</p>
+                  <p className="text-sm text-gray-400">{t("chatExt.noHistory")}</p>
                 </div>
               )}
             </div>
@@ -822,11 +835,11 @@ export default function ChatPage() {
                       <button
                         onClick={() => speakReply(msg.text)}
                         className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition ${
-                          isOnline ? "text-blue-500 hover:text-blue-700" : "text-amber-500 hover:text-amber-700"
+                          isSpeaking ? "text-red-500 hover:text-red-700" : (isOnline ? "text-blue-500 hover:text-blue-700" : "text-amber-500 hover:text-amber-700")
                         }`}
-                        title={t("chat.speakReply")}
+                        title={isSpeaking ? "Stop Speaking" : t("chat.speakReply")}
                       >
-                        <Volume2 size={14} />
+                        {isSpeaking ? <Square fill="currentColor" size={14} /> : <Volume2 size={14} />}
                       </button>
                     </div>
                   )}

@@ -99,7 +99,7 @@ export default function MedicinesPage() {
       const updated = [...medicines, newMed];
       setMedicines(updated);
       cacheMedicines(updated);
-      toast.success(t("medicines.addedSuccess") + " (offline)");
+      toast.success(t("medicines.addedSuccess") + t("medicinesExt.offlineSuffix"));
       setFormData({ name: "", dose: "", time: "", reminder: false });
       setShowForm(false);
 
@@ -145,7 +145,7 @@ export default function MedicinesPage() {
       const updated = medicines.filter((m) => m._id !== id);
       setMedicines(updated);
       cacheMedicines(updated);
-      toast.success(t("medicines.deletedSuccess") + " (offline)");
+      toast.success(t("medicines.deletedSuccess") + t("medicinesExt.offlineSuffix"));
       return;
     }
 
@@ -255,7 +255,7 @@ export default function MedicinesPage() {
             {!isOnline && (
               <div className="flex items-center gap-2 bg-amber-500/30 px-3 py-2 rounded-xl text-amber-200 text-sm">
                 <WifiOff size={16} />
-                <span>Offline</span>
+                <span>{t("medicinesExt.offline")}</span>
               </div>
             )}
           </div>
@@ -266,8 +266,8 @@ export default function MedicinesPage() {
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-center gap-3 text-amber-800 dark:text-amber-300 text-sm">
             <WifiOff size={18} />
             <div>
-              <p className="font-semibold">Working Offline</p>
-              <p className="text-xs mt-0.5">Medicine changes are saved locally and will sync when internet is restored.</p>
+              <p className="font-semibold">{t("medicinesExt.workOffline")}</p>
+              <p className="text-xs mt-0.5">{t("medicinesExt.offlineDesc")}</p>
             </div>
           </div>
         )}

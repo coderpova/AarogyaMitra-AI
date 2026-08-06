@@ -65,9 +65,9 @@ export default function EligibilityForm({
             }
             className="w-full border rounded-xl p-3 dark:bg-gray-800 dark:text-white border-gray-300 dark:border-gray-700"
           >
-            <option value="">Select Gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
+            <option value="">{t("schemesExt.selectGender")}</option>
+            <option value="male">{t("schemesExt.male")}</option>
+            <option value="female">{t("schemesExt.female")}</option>
           </select>
         </div>
 
@@ -86,7 +86,7 @@ export default function EligibilityForm({
             }
             className="w-full border rounded-xl p-3 dark:bg-gray-800 dark:text-white border-gray-300 dark:border-gray-700"
           >
-            <option value="">Select State</option>
+            <option value="">{t("schemesExt.selectState")}</option>
             {Object.keys(locations).map((state) => (
               <option key={state} value={state}>
                 {state}
@@ -129,11 +129,11 @@ export default function EligibilityForm({
             }
             className="w-full border rounded-xl p-3 dark:bg-gray-800 dark:text-white border-gray-300 dark:border-gray-700"
           >
-            <option value="">Select Category</option>
-            <option>General</option>
-            <option>OBC</option>
-            <option>SC</option>
-            <option>ST</option>
+            <option value="">{t("schemesExt.selectCategory")}</option>
+            <option value="General">{t("schemesExt.general")}</option>
+            <option value="OBC">{t("schemesExt.obc")}</option>
+            <option value="SC">{t("schemesExt.sc")}</option>
+            <option value="ST">{t("schemesExt.st")}</option>
           </select>
         </div>
       </div>
@@ -154,7 +154,7 @@ export default function EligibilityForm({
               })
             }
           />
-          <span>Pregnant</span>
+          <span>{t("schemesExt.pregnant")}</span>
         </label>
 
         <label className="flex items-center gap-3 border rounded-xl p-4 cursor-pointer dark:border-gray-700 dark:text-white">
@@ -168,7 +168,7 @@ export default function EligibilityForm({
               })
             }
           />
-          <span>Senior Citizen</span>
+          <span>{t("schemesExt.seniorCitizen")}</span>
         </label>
 
         <label className="flex items-center gap-3 border rounded-xl p-4 cursor-pointer dark:border-gray-700 dark:text-white">
@@ -182,7 +182,7 @@ export default function EligibilityForm({
               })
             }
           />
-          <span>Disability</span>
+          <span>{t("schemesExt.disability")}</span>
         </label>
       </div>
 

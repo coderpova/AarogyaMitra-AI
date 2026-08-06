@@ -1,3 +1,5 @@
+"use client";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Brain,
   Languages,
@@ -5,34 +7,32 @@ import {
   HeartHandshake,
 } from "lucide-react";
 
-const benefits = [
+
+export default function WhyChooseUs() {
+  const { t } = useLanguage();
+  const benefits = [
   {
     icon: Brain,
-    title: "AI Powered Diagnosis",
-    description:
-      "Get intelligent healthcare guidance powered by Artificial Intelligence.",
+    title: t("homeExt.beneTitle1"),
+    description: t("homeExt.beneDesc1"),
   },
   {
     icon: Languages,
-    title: "Multi-Language Support",
-    description:
-      "Communicate in Hindi, English and regional Indian languages.",
+    title: t("homeExt.beneTitle2"),
+    description: t("homeExt.beneDesc2"),
   },
   {
     icon: ShieldCheck,
-    title: "Secure & Private",
-    description:
-      "Your health information remains safe and protected.",
+    title: t("homeExt.beneTitle3"),
+    description: t("homeExt.beneDesc3"),
   },
   {
     icon: HeartHandshake,
-    title: "Healthcare For Everyone",
-    description:
-      "Designed especially for rural citizens with easy accessibility.",
+    title: t("homeExt.beneTitle4"),
+    description: t("homeExt.beneDesc4"),
   },
 ];
 
-export default function WhyChooseUs() {
   return (
     <section
       className="

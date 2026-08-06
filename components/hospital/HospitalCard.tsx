@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "@/context/LanguageContext";
 
 
 interface HospitalCardProps {
@@ -39,6 +40,7 @@ export default function HospitalCard({
     hospital
 
 }: HospitalCardProps) {
+  const { t } = useLanguage();
 
 
 
@@ -125,7 +127,7 @@ export default function HospitalCard({
                 "
             >
 
-                {hospital.category || "Healthcare Facility"}
+                {hospital.category || t("hospitalsExt.facility")}
 
             </p>
 
@@ -164,7 +166,7 @@ export default function HospitalCard({
                   "
                 >
 
-                📍 {(hospital.distance / 1000).toFixed(1)} km away
+                📍 {(hospital.distance / 1000).toFixed(1)} {t("hospitalsExt.kmAway")}
 
                 </p>
 
@@ -221,7 +223,7 @@ export default function HospitalCard({
                 "
             >
 
-                🕒 {hospital.openingHours || "Timing not available"}
+                🕒 {hospital.openingHours || t("hospitalsExt.timingNotAvail")}
 
             </p>
 
@@ -259,7 +261,7 @@ export default function HospitalCard({
 
                     >
 
-                        🌐 Visit Website
+                        🌐 {t("hospitalsExt.visitWeb")}
 
                     </a>
 
@@ -307,7 +309,7 @@ export default function HospitalCard({
 
             >
 
-                🗺️ Open Google Maps
+                🗺️ {t("hospitalsExt.openMap")}
 
 
             </a>

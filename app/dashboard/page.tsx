@@ -80,18 +80,24 @@ function setDailyMetric(key: string, value: number) {
 }
 
 /* ── Helper: BMI computation ─────────────────────────────────────────────── */
-function computeBMI(height: number, weight: number) {
+function computeBMI(height: number, weight: number, t: any) {
   if (!height || !weight || height <= 0 || weight <= 0) return null;
   const h = height / 100;
   const bmi = Math.round((weight / (h * h)) * 10) / 10;
-  if (bmi < 18.5) return { value: bmi, label: "Underweight", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: "Balanced diet needed" };
-  if (bmi < 25) return { value: bmi, label: "Normal", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: "Healthy range" };
-  if (bmi < 30) return { value: bmi, label: "Overweight", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: "Increase activity" };
-  return { value: bmi, label: "Obese", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: "Consult doctor" };
+  if (!t) {
+    if (bmi < 18.5) return { value: bmi, label: "Underweight", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: "Consider increasing caloric intake." };
+    if (bmi < 25) return { value: bmi, label: "Normal weight", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: "Maintain current healthy lifestyle." };
+    if (bmi < 30) return { value: bmi, label: "Overweight", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: "Regular exercise recommended." };
+    return { value: bmi, label: "Obese", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: "Consult a healthcare professional." };
+  }
+  if (bmi < 18.5) return { value: bmi, label: t("dashboardExt.bmiUnderL"), color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: t("dashboardExt.bmiUnderD") };
+  if (bmi < 25) return { value: bmi, label: t("dashboardExt.bmiNormL"), color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: t("dashboardExt.bmiNormD") };
+  if (bmi < 30) return { value: bmi, label: t("dashboardExt.bmiOverL"), color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: t("dashboardExt.bmiOverD") };
+  return { value: bmi, label: t("dashboardExt.bmiObeseL"), color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: t("dashboardExt.bmiObeseD") };
 }
 
 /* ── Helper: Risk level computation ──────────────────────────────────────── */
-function getRiskLevel(healthScore: number, reports: any[]) {
+function getRiskLevel(healthScore: number, reports: any[], t: any) {
   let abnormalCount = 0;
   reports.slice(0, 3).forEach((r) => {
     if (r.parameters) {
@@ -105,13 +111,23 @@ function getRiskLevel(healthScore: number, reports: any[]) {
     r.parameters?.some((p: any) => p.status === "Critical")
   );
 
-  if (hasCritical || healthScore < 40 || abnormalCount >= 5) {
-    return { label: "High Risk", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-300 dark:border-red-800", description: "Immediate medical attention recommended." };
+  if (!t) {
+    if (healthScore < 40 || hasCritical) {
+      return { label: "High Risk", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-300 dark:border-red-800", description: "Critical parameters found. Immediate medical attention advised." };
+    }
+    if (healthScore < 60 || abnormalCount >= 2) {
+      return { label: "Moderate Risk", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-300 dark:border-amber-800", description: "Monitor health and consult a doctor soon." };
+    }
+    return { label: "Low Risk", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-300 dark:border-green-800", description: "Your health indicators look good!" };
+  }
+
+  if (healthScore < 40 || hasCritical) {
+    return { label: t("dashboardExt.riskHighL"), color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-300 dark:border-red-800", description: t("dashboardExt.riskHighD") };
   }
   if (healthScore < 60 || abnormalCount >= 2) {
-    return { label: "Moderate Risk", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-300 dark:border-amber-800", description: "Monitor health and consult a doctor soon." };
+    return { label: t("dashboardExt.riskModL"), color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-300 dark:border-amber-800", description: t("dashboardExt.riskModD") };
   }
-  return { label: "Low Risk", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-300 dark:border-green-800", description: "Your health indicators look good!" };
+  return { label: t("dashboardExt.riskLowL"), color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-300 dark:border-green-800", description: t("dashboardExt.riskLowD") };
 }
 
 /* ── Animated Circular Progress ─────────────────────────────────────────── */
@@ -264,16 +280,16 @@ export default function DashboardPage() {
     if (h) setBmiHeight(h);
     if (w) setBmiWeight(w);
     if (h && w) {
-      setBmiResult(computeBMI(parseFloat(h), parseFloat(w)));
+      setBmiResult(computeBMI(parseFloat(h), parseFloat(w), t));
     }
-  }, []);
+  }, [t]);
 
   // FIND HOSPITALS
   const findHospitals = () => {
     setLoading(true);
     setLocationError("");
     if (!navigator.geolocation) {
-      setLocationError("Location not supported");
+      setLocationError(t("dashboardExt.errLocSupport"));
       setLoading(false);
       return;
     }
@@ -287,13 +303,13 @@ export default function DashboardPage() {
           setHospitals(data.hospitals || []);
         } catch (error) {
           console.log(error);
-          setLocationError("Unable to fetch hospitals");
+          setLocationError(t("dashboardExt.errLocFetch"));
         } finally {
           setLoading(false);
         }
       },
       () => {
-        setLocationError("Please allow location access");
+        setLocationError(t("dashboardExt.errLocAllow"));
         setLoading(false);
       }
     );
@@ -320,7 +336,7 @@ export default function DashboardPage() {
     const h = parseFloat(bmiHeight);
     const w = parseFloat(bmiWeight);
     if (!h || !w || h <= 0 || w <= 0) return;
-    const result = computeBMI(h, w);
+    const result = computeBMI(h, w, t);
     setBmiResult(result);
     localStorage.setItem("health_height", bmiHeight);
     localStorage.setItem("health_weight", bmiWeight);
@@ -338,7 +354,7 @@ export default function DashboardPage() {
   const nextAppt = upcomingAppointments[0];
 
   const recentReports = reports.slice(0, 3);
-  const riskLevel = getRiskLevel(healthScore, reports);
+  const riskLevel = getRiskLevel(healthScore, reports, t);
 
   // Build health timeline
   const timelineEvents: Array<{ date: string; title: string; type: string; icon: any }> = [];
@@ -370,7 +386,7 @@ export default function DashboardPage() {
 
   // Build health trends data
   const trendsData = reports.slice(0, 6).reverse().map((r, i) => {
-    const abnormal = r.parameters?.filter((p: any) => p.status !== "Normal").length || 0;
+    const abnormal = r.parameters?.filter((p: any) => p.status !== t("dashboardExt.bmiNormL")).length || 0;
     return {
       label: `R${i + 1}`,
       value: abnormal,
@@ -387,13 +403,13 @@ export default function DashboardPage() {
           <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold mb-3">
-                <Sparkles size={14} /> Your Health Companion
+                <Sparkles size={14} /> {t("dashboardExt.badgeApp")}
               </div>
               <h1 className="text-2xl sm:text-4xl font-bold">
                 {t("dashboard.welcomeUser", { name: user?.name || "User" })}
               </h1>
               <p className="mt-2 text-blue-100 text-sm sm:text-base max-w-lg">
-                {t("dashboard.subtitle")} — Track your health, consult AI, and stay on top of your wellness journey.
+                {t("dashboard.subtitle")} {t("dashboardExt.badgeAppDesc")}
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 {user?.profile?.bloodGroup && (
@@ -414,22 +430,22 @@ export default function DashboardPage() {
                 onClick={() => setEmergencyOpen(!emergencyOpen)}
                 className="emergency-btn bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-2xl flex items-center gap-2 shadow-lg"
               >
-                <Siren size={20} /> Emergency
+                <Siren size={20} /> {t("dashboardExt.btnEmergency")}
               </button>
               {emergencyOpen && (
                 <div className="absolute right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 w-56 z-50 space-y-2">
                   <a href="tel:112" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
                     <div className="p-2 rounded-lg bg-red-100 dark:bg-red-950 text-red-600"><Phone size={18} /></div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">Call 112</p>
-                      <p className="text-xs text-gray-400">National Emergency</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{t("dashboardExt.call112")}</p>
+                      <p className="text-xs text-gray-400">{t("dashboardExt.natEmerg")}</p>
                     </div>
                   </a>
                   <a href="tel:108" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
                     <div className="p-2 rounded-lg bg-red-100 dark:bg-red-950 text-red-600"><Phone size={18} /></div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">Call 108</p>
-                      <p className="text-xs text-gray-400">Ambulance</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{t("dashboardExt.call108")}</p>
+                      <p className="text-xs text-gray-400">{t("dashboardExt.ambulance")}</p>
                     </div>
                   </a>
                   <button
@@ -438,8 +454,8 @@ export default function DashboardPage() {
                   >
                     <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600"><MapPin size={18} /></div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">Find Hospital</p>
-                      <p className="text-xs text-gray-400">Nearest emergency</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{t("dashboardExt.findHosp")}</p>
+                      <p className="text-xs text-gray-400">{t("dashboardExt.nearEmerg")}</p>
                     </div>
                   </button>
                 </div>
@@ -457,14 +473,14 @@ export default function DashboardPage() {
             </h2>
             <CircularProgress value={healthScore} label={t("dashboard.healthScore")} size={120} />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-              {healthScore >= 80 ? "Great health! Keep it up." : healthScore >= 50 ? "Moderate health. Consider lifestyle changes." : "Please consult a doctor."}
+              {healthScore >= 80 ? t("dashboardExt.healthGreat") : healthScore >= 50 ? t("dashboardExt.healthMod") : t("dashboardExt.healthPoor")}
             </p>
           </div>
 
           {/* Risk Level */}
           <div className={`rounded-3xl p-6 shadow-md border-2 ${riskLevel.border} ${riskLevel.bg} flex flex-col justify-center`}>
             <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
-              <AlertCircle size={18} className={riskLevel.color} /> Risk Level
+              <AlertCircle size={18} className={riskLevel.color} /> {t("dashboardExt.riskLevel")}
             </h2>
             <div className="flex items-center gap-4">
               <div className={`text-4xl font-bold ${riskLevel.color}`}>{riskLevel.label.split(" ")[0]}</div>
@@ -474,11 +490,11 @@ export default function DashboardPage() {
             <div className="mt-3 flex gap-4 text-xs">
               <div className="flex items-center gap-1">
                 <HeartPulse size={14} className="text-red-500" />
-                <span className="text-gray-600 dark:text-gray-300">{heartRate || "--"} BPM</span>
+                <span className="text-gray-600 dark:text-gray-300">{heartRate || "--"} {t("dashboardExt.unitBpm")}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Activity size={14} className="text-green-500" />
-                <span className="text-gray-600 dark:text-gray-300">{steps || "--"} steps</span>
+                <span className="text-gray-600 dark:text-gray-300">{steps || "--"} {t("dashboardExt.unitSteps")}</span>
               </div>
             </div>
           </div>
@@ -486,7 +502,7 @@ export default function DashboardPage() {
           {/* BMI Widget */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
             <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
-              <Scale size={18} className="text-blue-600" /> BMI Calculator
+              <Scale size={18} className="text-blue-600" /> {t("dashboardExt.bmiCalc")}
             </h2>
             {bmiResult ? (
               <div className="flex flex-col items-center">
@@ -497,14 +513,14 @@ export default function DashboardPage() {
                   onClick={() => { setBmiResult(null); }}
                   className="mt-2 text-xs text-blue-600 hover:underline"
                 >
-                  Recalculate
+                  {t("dashboardExt.btnRecalc")}
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
-                <input type="number" value={bmiHeight} onChange={(e) => setBmiHeight(e.target.value)} placeholder="Height (cm)" className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                <input type="number" value={bmiWeight} onChange={(e) => setBmiWeight(e.target.value)} placeholder="Weight (kg)" className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                <button onClick={calculateBMI} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold transition">Calculate BMI</button>
+                <input type="number" value={bmiHeight} onChange={(e) => setBmiHeight(e.target.value)} placeholder={t("dashboardExt.phHeight")} className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                <input type="number" value={bmiWeight} onChange={(e) => setBmiWeight(e.target.value)} placeholder={t("dashboardExt.phWeight")} className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                <button onClick={calculateBMI} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold transition">{t("dashboardExt.btnCalcBmi")}</button>
               </div>
             )}
           </div>
@@ -515,12 +531,12 @@ export default function DashboardPage() {
           {/* Water Intake */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Droplet size={18} className="text-blue-500" /> Water Intake</h3>
-              <span className="text-xs text-gray-400">Goal: 8 glasses</span>
+              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Droplet size={18} className="text-blue-500" /> {t("dashboardExt.waterTitle")}</h3>
+              <span className="text-xs text-gray-400">{t("dashboardExt.waterGoal")}</span>
             </div>
             <div className="flex items-center justify-center gap-4">
               <button onClick={() => updateWater(-1)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"><Minus size={18} /></button>
-              <GoalRing current={waterIntake} goal={8} label="glasses" color="#3b82f6" unit="" />
+              <GoalRing current={waterIntake} goal={8} label={t("dashboardExt.waterUnit")} color="#3b82f6" unit="" />
               <button onClick={() => updateWater(1)} className="p-2 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900 transition"><Plus size={18} /></button>
             </div>
           </div>
@@ -528,12 +544,12 @@ export default function DashboardPage() {
           {/* Exercise Goal */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Dumbbell size={18} className="text-green-500" /> Exercise Goal</h3>
-              <span className="text-xs text-gray-400">Goal: 30 min</span>
+              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Dumbbell size={18} className="text-green-500" /> {t("dashboardExt.exerTitle")}</h3>
+              <span className="text-xs text-gray-400">{t("dashboardExt.exerGoal")}</span>
             </div>
             <div className="flex items-center justify-center gap-4">
               <button onClick={() => updateExercise(-5)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"><Minus size={18} /></button>
-              <GoalRing current={exerciseMin} goal={30} label="minutes" color="#22c55e" unit="m" />
+              <GoalRing current={exerciseMin} goal={30} label={t("dashboardExt.exerUnit")} color="#22c55e" unit="m" />
               <button onClick={() => updateExercise(5)} className="p-2 rounded-full bg-green-100 dark:bg-green-950 text-green-600 hover:bg-green-200 dark:hover:bg-green-900 transition"><Plus size={18} /></button>
             </div>
           </div>
@@ -541,12 +557,12 @@ export default function DashboardPage() {
           {/* Sleep Goal */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Moon size={18} className="text-purple-500" /> Sleep Goal</h3>
-              <span className="text-xs text-gray-400">Goal: 8 hours</span>
+              <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Moon size={18} className="text-purple-500" /> {t("dashboardExt.sleepTitle")}</h3>
+              <span className="text-xs text-gray-400">{t("dashboardExt.sleepGoal")}</span>
             </div>
             <div className="flex items-center justify-center gap-4">
               <button onClick={() => updateSleep(-0.5)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"><Minus size={18} /></button>
-              <GoalRing current={sleepHrs} goal={8} label="hours" color="#a855f7" unit="h" />
+              <GoalRing current={sleepHrs} goal={8} label={t("dashboardExt.sleepUnit")} color="#a855f7" unit="h" />
               <button onClick={() => updateSleep(0.5)} className="p-2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-600 hover:bg-purple-200 dark:hover:bg-purple-900 transition"><Plus size={18} /></button>
             </div>
           </div>
@@ -557,8 +573,8 @@ export default function DashboardPage() {
           {/* Today's Medicines */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Pill size={18} className="text-blue-600" /> Today's Medicines</h2>
-              <button onClick={() => router.push("/medicines")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">View All <ArrowRight size={12} /></button>
+              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Pill size={18} className="text-blue-600" /> {t("dashboardExt.medTitle")}</h2>
+              <button onClick={() => router.push("/medicines")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">{t("dashboardExt.viewAll")} <ArrowRight size={12} /></button>
             </div>
             {medicines.length > 0 ? (
               <div className="space-y-2">
@@ -576,7 +592,7 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-6 text-gray-400 text-sm">
                 <Pill className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-                No medicines scheduled
+                {t("dashboardExt.noMed")}
               </div>
             )}
           </div>
@@ -584,8 +600,8 @@ export default function DashboardPage() {
           {/* Upcoming Appointment */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Calendar size={18} className="text-purple-600" /> Upcoming Appointment</h2>
-              <button onClick={() => router.push("/appointments")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">View All <ArrowRight size={12} /></button>
+              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Calendar size={18} className="text-purple-600" /> {t("dashboardExt.appTitle")}</h2>
+              <button onClick={() => router.push("/appointments")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">{t("dashboardExt.viewAll")} <ArrowRight size={12} /></button>
             </div>
             {nextAppt ? (
               <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30">
@@ -603,7 +619,7 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-6 text-gray-400 text-sm">
                 <Calendar className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-                No upcoming appointments
+                {t("dashboardExt.noApp")}
               </div>
             )}
           </div>
@@ -614,8 +630,8 @@ export default function DashboardPage() {
           {/* Recent Reports */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><FileText size={18} className="text-blue-600" /> Recent Reports</h2>
-              <button onClick={() => router.push("/report-analyzer")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">View All <ArrowRight size={12} /></button>
+              <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><FileText size={18} className="text-blue-600" /> {t("dashboardExt.repTitle")}</h2>
+              <button onClick={() => router.push("/report-analyzer")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">{t("dashboardExt.viewAll")} <ArrowRight size={12} /></button>
             </div>
             {recentReports.length > 0 ? (
               <div className="space-y-2">
@@ -635,14 +651,14 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-6 text-gray-400 text-sm">
                 <FileText className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-                No reports analyzed yet
+                {t("dashboardExt.noRep")}
               </div>
             )}
           </div>
 
           {/* Health Timeline */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
-            <h2 className="text-sm font-bold dark:text-white mb-4 flex items-center gap-2"><Clock size={18} className="text-blue-600" /> Health Timeline</h2>
+            <h2 className="text-sm font-bold dark:text-white mb-4 flex items-center gap-2"><Clock size={18} className="text-blue-600" /> {t("dashboardExt.timeTitle")}</h2>
             {timelineEvents.length > 0 ? (
               <div className="timeline-line relative space-y-4 pl-10">
                 {timelineEvents.slice(0, 6).map((evt, idx) => {
@@ -664,7 +680,7 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-6 text-gray-400 text-sm">
                 <Clock className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-                No health events yet
+                {t("dashboardExt.noEvents")}
               </div>
             )}
           </div>
@@ -673,14 +689,14 @@ export default function DashboardPage() {
         {/* Row 6: Health Trends */}
         <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
           <h2 className="text-sm font-bold dark:text-white mb-4 flex items-center gap-2">
-            <TrendingUp size={18} className="text-blue-600" /> Health Trends — Abnormal Markers Over Time
+            <TrendingUp size={18} className="text-blue-600" /> {t("dashboardExt.trendTitle")}
           </h2>
           {trendsData.length >= 2 ? (
             <MiniBarChart data={trendsData} />
           ) : (
             <div className="text-center py-8 text-gray-400 text-sm">
               <TrendingUp className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-              Analyze at least 2 reports to see health trends
+              {t("dashboardExt.trendNeed")}
             </div>
           )}
         </div>
@@ -689,19 +705,19 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-500"><HeartPulse size={22} /></div>
-            <div><p className="text-xs text-gray-500 dark:text-gray-400">Heart Rate</p><p className="text-lg font-bold text-gray-900 dark:text-white">{heartRate || "--"}<span className="text-xs font-normal text-gray-400 ml-1">BPM</span></p></div>
+            <div><p className="text-xs text-gray-500 dark:text-gray-400">{t("dashboardExt.statHeart")}</p><p className="text-lg font-bold text-gray-900 dark:text-white">{heartRate || "--"}<span className="text-xs font-normal text-gray-400 ml-1">BPM</span></p></div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-500"><Activity size={22} /></div>
-            <div><p className="text-xs text-gray-500 dark:text-gray-400">Daily Steps</p><p className="text-lg font-bold text-gray-900 dark:text-white">{steps || "--"}</p></div>
+            <div><p className="text-xs text-gray-500 dark:text-gray-400">{t("dashboardExt.statSteps")}</p><p className="text-lg font-bold text-gray-900 dark:text-white">{steps || "--"}</p></div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-500"><Pill size={22} /></div>
-            <div><p className="text-xs text-gray-500 dark:text-gray-400">Medicines</p><p className="text-lg font-bold text-gray-900 dark:text-white">{medicineCount}</p></div>
+            <div><p className="text-xs text-gray-500 dark:text-gray-400">{t("dashboardExt.statMed")}</p><p className="text-lg font-bold text-gray-900 dark:text-white">{medicineCount}</p></div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-500"><Calendar size={22} /></div>
-            <div><p className="text-xs text-gray-500 dark:text-gray-400">Appointments</p><p className="text-lg font-bold text-gray-900 dark:text-white">{appointments.length}</p></div>
+            <div><p className="text-xs text-gray-500 dark:text-gray-400">{t("dashboardExt.statApp")}</p><p className="text-lg font-bold text-gray-900 dark:text-white">{appointments.length}</p></div>
           </div>
         </div>
 
@@ -722,13 +738,13 @@ export default function DashboardPage() {
         {/* Row 9: Daily Health Tips */}
         <div>
           <h2 className="text-xl font-bold mb-4 dark:text-white flex items-center gap-2">
-            <Sparkles size={20} className="text-blue-600" /> Daily Health Tips
+            <Sparkles size={20} className="text-blue-600" /> {t("dashboardExt.tipsTitle")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <HealthTipCard icon={Apple} title="Hydration" tip="Drink at least 8 glasses of water daily. Add lemon for detox benefits." color="bg-green-50 dark:bg-green-950/40 text-green-600" />
-            <HealthTipCard icon={Brain} title="Mental Wellness" tip="Practice 10 minutes of meditation daily. It reduces stress and improves focus." color="bg-purple-50 dark:bg-purple-950/40 text-purple-600" />
-            <HealthTipCard icon={Activity} title="Stay Active" tip="Walk at least 30 minutes daily. Even light exercise boosts immunity." color="bg-blue-50 dark:bg-blue-950/40 text-blue-600" />
-            <HealthTipCard icon={Syringe} title="Prevention" tip="Keep vaccinations up to date. Annual health checkups catch issues early." color="bg-amber-50 dark:bg-amber-950/40 text-amber-600" />
+            <HealthTipCard icon={Apple} title={t("dashboardExt.tipWaterT")} tip={t("dashboardExt.tipWaterD")} color="bg-green-50 dark:bg-green-950/40 text-green-600" />
+            <HealthTipCard icon={Brain} title={t("dashboardExt.tipMindT")} tip={t("dashboardExt.tipMindD")} color="bg-purple-50 dark:bg-purple-950/40 text-purple-600" />
+            <HealthTipCard icon={Activity} title={t("dashboardExt.tipActT")} tip={t("dashboardExt.tipActD")} color="bg-blue-50 dark:bg-blue-950/40 text-blue-600" />
+            <HealthTipCard icon={Syringe} title={t("dashboardExt.tipPrevT")} tip={t("dashboardExt.tipPrevD")} color="bg-amber-50 dark:bg-amber-950/40 text-amber-600" />
           </div>
         </div>
 
@@ -749,7 +765,7 @@ export default function DashboardPage() {
             ) : (
               <div className="md:col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
                 <MapPin className="mx-auto mb-3 text-gray-300 dark:text-gray-600" size={40} />
-                <p className="text-sm">Click search to find nearby hospitals.</p>
+                <p className="text-sm">{t("dashboardExt.clickSearch")}</p>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "@/context/LanguageContext";
 
 import { Search } from "lucide-react";
 
@@ -20,6 +21,7 @@ export default function SearchBar({
   setSearch,
 
 }: SearchBarProps) {
+  const { t } = useLanguage();
 
 
   return (
@@ -51,7 +53,7 @@ export default function SearchBar({
 
         onChange={(e) => setSearch(e.target.value)}
 
-        placeholder="Search hospitals..."
+        placeholder={t("hospitalsExt.searchPlaceholder2")}
 
         className="
         w-full

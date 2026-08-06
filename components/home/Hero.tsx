@@ -1,3 +1,5 @@
+"use client";
+import { useLanguage } from "@/context/LanguageContext";
 import { Button } from "../ui/Button";
 import {
   ArrowRight,
@@ -7,6 +9,7 @@ import {
 } from "lucide-react";
 
 export default function Hero() {
+  const { t } = useLanguage();
   return (
     <section
       className="
@@ -91,17 +94,17 @@ export default function Hero() {
 
             <div className="flex items-center gap-2 dark:text-gray-300">
               <ShieldCheck className="text-green-600" />
-              <span>Secure</span>
+              <span>{t("homeExt.badgeSecure")}</span>
             </div>
 
             <div className="flex items-center gap-2 dark:text-gray-300">
               <Stethoscope className="text-blue-600" />
-              <span>AI Doctor</span>
+              <span>{t("homeExt.badgeDoctor")}</span>
             </div>
 
             <div className="flex items-center gap-2 dark:text-gray-300">
               <HeartPulse className="text-red-500" />
-              <span>24/7 Support</span>
+              <span>{t("homeExt.badgeSupport")}</span>
             </div>
 
           </div>

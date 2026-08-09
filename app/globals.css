@@ -7,7 +7,7 @@
 /* Smooth Page Animation */
 
 .page-animation {
-  animation: fadeIn 0.4s ease-in-out;
+  animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 
@@ -111,8 +111,65 @@
 }
 
 /* Smooth transitions for all interactive elements */
-a, button {
-  transition: all 0.2s ease;
+a, button, input, select, textarea, [role="button"], .card, .interactive-element {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:active:not(:disabled), a:active:not(.no-scale) {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Modal and menu opening animations */
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-animation {
+  animation: modalFadeIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(4px); }
+}
+.overlay-animation {
+  animation: overlayFadeIn 0.2s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mobile-menu-animation {
+  animation: slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Skeleton Loading Pulse */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.skeleton-pulse {
+  animation: skeletonPulse 1.5s infinite ease-in-out;
+  background-color: #f1f5f9;
+}
+.dark .skeleton-pulse {
+  background-color: #334155;
+}
+
+/* Accessibility Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Health score circle animation */
@@ -225,3 +282,80 @@ a, button {
 .dark .abnormal-row-critical {
   background-color: rgba(239,68,68,0.15);
 }
+
+/* Premium Staggered Entrance Animations for Dashboard & Cards */
+@keyframes dashboardFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dash-header {
+  animation: dashboardFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-dash-card {
+  opacity: 0;
+  animation: dashboardFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Short staggered animation delays */
+.delay-1 { animation-delay: 50ms; }
+.delay-2 { animation-delay: 100ms; }
+.delay-3 { animation-delay: 150ms; }
+.delay-4 { animation-delay: 200ms; }
+.delay-5 { animation-delay: 250ms; }
+.delay-6 { animation-delay: 300ms; }
+
+/* Medicine Page Soft Pulse Animation (Runs 3 times then settles, avoiding continuous flashing) */
+@keyframes medActivePulse {
+  0%, 100% {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.8);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.15);
+  }
+}
+
+.animate-med-pulse {
+  animation: medActivePulse 2s ease-in-out;
+  animation-iteration-count: 3;
+  border-width: 2px !important;
+}
+
+/* Chat Extra Elements Subtle Fade-In */
+@keyframes chatExtraFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-extra-fade {
+  animation: chatExtraFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Respect user prefers-reduced-motion settings */
+@media (prefers-reduced-motion: reduce) {
+  .animate-dash-header,
+  .animate-dash-card,
+  .animate-med-pulse,
+  .chat-extra-fade {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}
+

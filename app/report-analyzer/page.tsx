@@ -74,10 +74,22 @@ export default function ReportAnalyzerPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<"scan" | "history">("scan");
+  const [loadingStage, setLoadingStage] = useState(0);
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (!loading) {
+      setTimeout(() => setLoadingStage(0), 0);
+      return;
+    }
+    const timer1 = setTimeout(() => setLoadingStage(1), 800);
+    const timer2 = setTimeout(() => setLoadingStage(2), 2000);
+    const timer3 = setTimeout(() => setLoadingStage(3), 3200);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [loading]);
 
   const fetchHistory = async () => {
     try {
@@ -95,6 +107,10 @@ export default function ReportAnalyzerPage() {
       console.error("Failed to load report history", err);
     }
   };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -373,14 +389,50 @@ export default function ReportAnalyzerPage() {
             {/* Analysis Output Column */}
             <div className="lg:col-span-7">
               {loading ? (
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-12 text-center shadow-lg h-full flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-white">
-                    {t("reportAnalyzer.analyzing")}
-                  </h3>
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 sm:p-12 text-center shadow-lg h-full flex flex-col items-center justify-center min-h-[350px]">
+                  <div className="w-full max-w-sm mx-auto space-y-6 text-left">
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white text-center mb-6">Analyzing Health Report</h3>
+                    <div className="space-y-4">
+                      {[
+                        { label: "Uploading report data", stage: 0 },
+                        { label: "Reading parameter values", stage: 1 },
+                        { label: "Analyzing health indicators", stage: 2 },
+                        { label: "Preparing medical insights", stage: 3 }
+                      ].map((item) => {
+                        const isCompleted = loadingStage > item.stage;
+                        const isActive = loadingStage === item.stage;
+                        return (
+                          <div
+                            key={item.stage}
+                            className={`flex items-center gap-4 transition-all duration-300 ${
+                              isActive ? "opacity-100 scale-[1.01]" : isCompleted ? "opacity-75" : "opacity-35"
+                            }`}
+                          >
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold transition-all duration-300 ${
+                              isCompleted
+                                ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
+                                : isActive
+                                ? "bg-blue-600 text-white animate-pulse"
+                                : "bg-gray-100 dark:bg-gray-800 text-gray-400"
+                            }`}>
+                              {isCompleted ? "✓" : item.stage + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs sm:text-sm truncate ${isActive ? "font-bold text-blue-600 dark:text-blue-400" : "font-medium text-gray-700 dark:text-gray-300"}`}>
+                                {item.label}
+                              </p>
+                            </div>
+                            {isActive && (
+                              <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               ) : analysis ? (
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl space-y-6">
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl space-y-6 chat-extra-fade">
                   {/* Emergency Warning */}
                   {analysis.emergencyWarning && analysis.emergencyWarning.trim() !== "" && (
                     <div className="emergency-pulse bg-red-50 dark:bg-red-950/40 rounded-2xl p-4 flex items-start gap-3">

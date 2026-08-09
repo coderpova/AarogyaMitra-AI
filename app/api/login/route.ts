@@ -111,7 +111,7 @@ export async function POST(request: Request) {
   } catch(error) {
 
 
-    console.log(error);
+    console.error("Login API Error:", error);
 
 
     return NextResponse.json(

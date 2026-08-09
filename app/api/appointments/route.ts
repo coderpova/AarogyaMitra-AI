@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("GET appointments error:", error);
 
     return NextResponse.json(
       {
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("POST appointment error:", error);
 
     return NextResponse.json(
       {
@@ -212,7 +212,7 @@ export async function PATCH(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("DELETE appointment error:", error);
 
     return NextResponse.json(
       {
@@ -288,7 +288,7 @@ export async function DELETE(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("PUT appointment error:", error);
 
     return NextResponse.json(
       {

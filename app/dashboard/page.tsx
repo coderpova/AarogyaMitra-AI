@@ -271,6 +271,7 @@ export default function DashboardPage() {
 
   // Load daily metrics from localStorage on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWaterIntake(getDailyMetric("water", 0));
     setExerciseMin(getDailyMetric("exercise", 0));
     setSleepHrs(getDailyMetric("sleep", 0));
@@ -345,6 +346,36 @@ export default function DashboardPage() {
   const healthScore = user?.health?.healthScore || 0;
   const heartRate = user?.health?.heartRate || 0;
   const steps = user?.health?.steps || 0;
+
+  const [animatedHealthScore, setAnimatedHealthScore] = useState(0);
+  const [animatedSteps, setAnimatedSteps] = useState(0);
+  const [animatedHeartRate, setAnimatedHeartRate] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setAnimatedHealthScore(healthScore);
+      setAnimatedSteps(steps);
+      setAnimatedHeartRate(heartRate);
+      return;
+    }
+
+    const stepsCount = 15;
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep++;
+      setAnimatedHealthScore(Math.round((healthScore / stepsCount) * currentStep));
+      setAnimatedSteps(Math.round((steps / stepsCount) * currentStep));
+      setAnimatedHeartRate(Math.round((heartRate / stepsCount) * currentStep));
+      if (currentStep >= stepsCount) {
+        clearInterval(interval);
+        setAnimatedHealthScore(healthScore);
+        setAnimatedSteps(steps);
+        setAnimatedHeartRate(heartRate);
+      }
+    }, 20);
+    return () => clearInterval(interval);
+  }, [healthScore, steps, heartRate]);
+
   const medicineCount = medicines.length || user?.medicines?.length || 0;
 
   const today = new Date().toISOString().split("T")[0];
@@ -398,7 +429,7 @@ export default function DashboardPage() {
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 space-y-8 page-animation">
         {/* Row 1: Welcome Banner + Emergency Button */}
-        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="animate-dash-header bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
           <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -413,13 +444,21 @@ export default function DashboardPage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 {user?.profile?.bloodGroup && (
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">🩸 {user.profile.bloodGroup}</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5">
+                    <Droplet size={12} className="fill-white text-white" />
+                    {user.profile.bloodGroup}
+                  </span>
                 )}
                 {user?.profile?.age && (
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">🎂 {user.profile.age}</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5">
+                    <Calendar size={12} className="text-white" />
+                    {user.profile.age} Years
+                  </span>
                 )}
                 {user?.profile?.gender && (
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">👤 {user.profile.gender}</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5">
+                    {user.profile.gender}
+                  </span>
                 )}
               </div>
             </div>
@@ -467,18 +506,18 @@ export default function DashboardPage() {
         {/* Row 2: Health Score + Risk Level + BMI */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* AI Health Score */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center">
+          <div className="animate-dash-card delay-1 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
               <Shield size={18} className="text-blue-600" /> {t("dashboard.healthScore")}
             </h2>
-            <CircularProgress value={healthScore} label={t("dashboard.healthScore")} size={120} />
+            <CircularProgress value={animatedHealthScore} label={t("dashboard.healthScore")} size={120} />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
               {healthScore >= 80 ? t("dashboardExt.healthGreat") : healthScore >= 50 ? t("dashboardExt.healthMod") : t("dashboardExt.healthPoor")}
             </p>
           </div>
 
           {/* Risk Level */}
-          <div className={`rounded-3xl p-6 shadow-md border-2 ${riskLevel.border} ${riskLevel.bg} flex flex-col justify-center`}>
+          <div className={`animate-dash-card delay-2 rounded-3xl p-6 shadow-md border-2 ${riskLevel.border} ${riskLevel.bg} flex flex-col justify-center hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200`}>
             <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
               <AlertCircle size={18} className={riskLevel.color} /> {t("dashboardExt.riskLevel")}
             </h2>
@@ -490,17 +529,17 @@ export default function DashboardPage() {
             <div className="mt-3 flex gap-4 text-xs">
               <div className="flex items-center gap-1">
                 <HeartPulse size={14} className="text-red-500" />
-                <span className="text-gray-600 dark:text-gray-300">{heartRate || "--"} {t("dashboardExt.unitBpm")}</span>
+                <span className="text-gray-600 dark:text-gray-300">{animatedHeartRate || "--"} {t("dashboardExt.unitBpm")}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Activity size={14} className="text-green-500" />
-                <span className="text-gray-600 dark:text-gray-300">{steps || "--"} {t("dashboardExt.unitSteps")}</span>
+                <span className="text-gray-600 dark:text-gray-300">{animatedSteps || "--"} {t("dashboardExt.unitSteps")}</span>
               </div>
             </div>
           </div>
 
           {/* BMI Widget */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-3 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
               <Scale size={18} className="text-blue-600" /> {t("dashboardExt.bmiCalc")}
             </h2>
@@ -529,7 +568,7 @@ export default function DashboardPage() {
         {/* Row 3: Daily Goals — Water + Exercise + Sleep */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {/* Water Intake */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-4 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Droplet size={18} className="text-blue-500" /> {t("dashboardExt.waterTitle")}</h3>
               <span className="text-xs text-gray-400">{t("dashboardExt.waterGoal")}</span>
@@ -542,7 +581,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Exercise Goal */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-4 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Dumbbell size={18} className="text-green-500" /> {t("dashboardExt.exerTitle")}</h3>
               <span className="text-xs text-gray-400">{t("dashboardExt.exerGoal")}</span>
@@ -555,7 +594,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Sleep Goal */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-4 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold dark:text-white flex items-center gap-2"><Moon size={18} className="text-purple-500" /> {t("dashboardExt.sleepTitle")}</h3>
               <span className="text-xs text-gray-400">{t("dashboardExt.sleepGoal")}</span>
@@ -571,7 +610,7 @@ export default function DashboardPage() {
         {/* Row 4: Today's Medicines + Upcoming Appointment */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Today's Medicines */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-5 bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Pill size={18} className="text-blue-600" /> {t("dashboardExt.medTitle")}</h2>
               <button onClick={() => router.push("/medicines")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">{t("dashboardExt.viewAll")} <ArrowRight size={12} /></button>
@@ -598,7 +637,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Upcoming Appointment */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
+          <div className="animate-dash-card delay-5 bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-sm font-bold dark:text-white flex items-center gap-2"><Calendar size={18} className="text-purple-600" /> {t("dashboardExt.appTitle")}</h2>
               <button onClick={() => router.push("/appointments")} className="text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">{t("dashboardExt.viewAll")} <ArrowRight size={12} /></button>

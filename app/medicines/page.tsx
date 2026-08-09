@@ -5,6 +5,8 @@ import { Pill, Clock, Trash2, Plus, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
+import { useNotification } from "@/context/NotificationContext";
 import {
   cacheMedicines,
   getCachedMedicines,
@@ -13,10 +15,30 @@ import {
 
 export default function MedicinesPage() {
   const { t } = useLanguage();
+  const { refreshSchedules } = useNotification();
   const [medicines, setMedicines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
+
+  const isMedicineActive = (medicineTime: string) => {
+    if (typeof window === "undefined") return false;
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+
+    const timeMatch = medicineTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!timeMatch) return false;
+
+    let medHour = parseInt(timeMatch[1]);
+    const medMin = parseInt(timeMatch[2]);
+    const period = timeMatch[3]?.toUpperCase();
+
+    if (period === "PM" && medHour < 12) medHour += 12;
+    if (period === "AM" && medHour === 12) medHour = 0;
+
+    return currentHour === medHour && currentMin === medMin;
+  };
 
   const [formData, setFormData] = useState({
     name: "",
@@ -24,29 +46,6 @@ export default function MedicinesPage() {
     time: "",
     reminder: false,
   });
-
-  // ── Network Detection ──────────────────────────────────────────────────────
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      fetchMedicines(); // Re-fetch from server when back online
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    fetchMedicines();
-  }, []);
 
   const fetchMedicines = async () => {
     // Offline: load from cache
@@ -71,6 +70,7 @@ export default function MedicinesPage() {
         setMedicines(meds);
         // Cache for offline use
         cacheMedicines(meds);
+        refreshSchedules();
       }
     } catch (error) {
       console.log("Medicines fetch failed, using cache:", error);
@@ -81,6 +81,27 @@ export default function MedicinesPage() {
       setLoading(false);
     }
   };
+
+  // ── Network Detection ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      fetchMedicines(); // Re-fetch from server when back online
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchMedicines();
+  }, []);
 
   const addMedicine = async () => {
     if (!formData.name || !formData.dose || !formData.time) {
@@ -129,7 +150,7 @@ export default function MedicinesPage() {
         setFormData({ name: "", dose: "", time: "", reminder: false });
         setShowForm(false);
         // Schedule reminder
-        scheduleReminder(formData);
+        refreshSchedules();
       } else {
         toast.error(data.message);
       }
@@ -163,6 +184,7 @@ export default function MedicinesPage() {
       if (res.ok) {
         toast.success(t("medicines.deletedSuccess"));
         fetchMedicines();
+        refreshSchedules();
       }
     } catch (error) {
       console.log(error);
@@ -236,7 +258,7 @@ export default function MedicinesPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="p-10 text-lg">{t("common.loading")}</div>
+        <LoadingSkeleton text="Loading your medicine reminders..." />
       </DashboardLayout>
     );
   }
@@ -352,8 +374,12 @@ export default function MedicinesPage() {
             medicines.map((medicine) => (
               <div
                 key={medicine._id}
-                className={`bg-white dark:bg-gray-900 border rounded-2xl shadow-lg p-6 flex flex-col justify-between ${
-                  medicine._pendingSync
+                className={`bg-white dark:bg-gray-900 border rounded-2xl shadow-lg p-6 flex flex-col justify-between hover:-translate-y-[1px] hover:shadow-xl transition-all duration-200 ${
+                  isMedicineActive(medicine.time)
+                    ? "animate-med-pulse border-blue-500 ring-2 ring-blue-500/20"
+                    : medicine.taken
+                    ? "opacity-75 border-green-200 dark:border-green-950/40 bg-gray-50/50 dark:bg-gray-950/20"
+                    : medicine._pendingSync
                     ? "border-amber-300 dark:border-amber-700"
                     : "border-gray-100 dark:border-gray-800"
                 }`}
@@ -362,7 +388,7 @@ export default function MedicinesPage() {
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <Pill className="text-blue-600" size={24} />
-                      <h2 className="text-xl font-bold dark:text-white">
+                      <h2 className={`text-xl font-bold dark:text-white transition-all ${medicine.taken ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
                         {medicine.name}
                       </h2>
                     </div>
@@ -386,17 +412,50 @@ export default function MedicinesPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-4 flex-wrap">
-                  {medicine.reminder && (
-                    <p className="text-green-600 dark:text-green-400 font-semibold text-xs bg-green-50 dark:bg-green-950/40 px-3 py-1 rounded-full">
-                      ✓ {t("medicines.reminder")}
-                    </p>
-                  )}
-                  {medicine._pendingSync && (
-                    <p className="text-amber-600 dark:text-amber-400 font-semibold text-xs bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-full">
-                      ⏳ Pending Sync
-                    </p>
-                  )}
+                <div className="flex items-center justify-between gap-2 mt-5 pt-3 border-t border-gray-100 dark:border-gray-800/80">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {medicine.reminder && (
+                      <p className="text-green-600 dark:text-green-400 font-semibold text-[10px] bg-green-50 dark:bg-green-950/40 px-2 py-0.5 rounded-full">
+                        ✓ {t("medicines.reminder")}
+                      </p>
+                    )}
+                    {medicine._pendingSync && (
+                      <p className="text-amber-600 dark:text-amber-400 font-semibold text-[10px] bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full">
+                        ⏳ Sync
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const token = localStorage.getItem("token");
+                        await fetch("/api/medicines", {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({ id: medicine._id }),
+                        });
+                        fetchMedicines();
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
+                      medicine.taken
+                        ? "bg-green-600 text-white shadow-sm shadow-green-500/20"
+                        : "bg-gray-100 dark:bg-gray-850 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-250 dark:border-gray-700"
+                    }`}
+                  >
+                    <span className={`w-3.5 h-3.5 flex items-center justify-center rounded-full border text-[10px] font-bold transition-all duration-300 ${
+                      medicine.taken ? "bg-white border-white text-green-600" : "border-gray-400 text-transparent"
+                    }`}>
+                      ✓
+                    </span>
+                    {medicine.taken ? "Taken" : "Mark Taken"}
+                  </button>
                 </div>
               </div>
             ))

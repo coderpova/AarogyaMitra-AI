@@ -133,76 +133,34 @@ export async function PUT(request: Request) {
 
     const body = await request.json();
 
-
-
-    console.log("UPDATE DATA:",body);
-
-    console.log("USER ID:",decoded.userId);
-
-
-
-
     const updatedUser = await User.findByIdAndUpdate(
-
       decoded.userId,
-
-
       {
-
         $set:{
-
           "profile.age": Number(body.age),
-
           "profile.gender": body.gender,
-
           "profile.bloodGroup": body.bloodGroup,
-
           "profile.phone": body.phone,
-
           "profile.address": body.address
-
         }
-
       },
-
-
       {
         new:true
       }
-
-
     ).select("-password");
 
-
-
-
-    console.log("UPDATED USER:",updatedUser);
-
-
-
-
     return NextResponse.json(
-
       {
-
         message:"Profile updated successfully",
-
         user:updatedUser
-
       },
-
       {
         status:200
       }
-
     );
 
-
-
   } catch(error) {
-
-
-    console.log(error);
+    console.error("User profile update error:", error);
 
 
     return NextResponse.json(

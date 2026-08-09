@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 import { Toaster } from "react-hot-toast";
 
@@ -53,13 +54,11 @@ export default function RootLayout({
 
 
           <AuthProvider>
-            
-            <LanguageProvider>
-
-              {children}
-
-            </LanguageProvider>
-
+            <NotificationProvider>
+              <LanguageProvider>
+                {children}
+              </LanguageProvider>
+            </NotificationProvider>
           </AuthProvider>
 
 

@@ -59,9 +59,9 @@ export const en = {
 
   // Auth
   auth: {
-    loginTitle: "Welcome Back 👋",
+    loginTitle: "Welcome Back",
     loginSubtitle: "Sign in to access your health dashboard and AI assistant.",
-    registerTitle: "Create Your Account 🏥",
+    registerTitle: "Create Your Account",
     registerSubtitle: "Start your journey to smarter healthcare management.",
     fullName: "Full Name",
     email: "Email Address",
@@ -107,7 +107,7 @@ export const en = {
 
   // Dashboard
   dashboard: {
-    title: "Health Dashboard 📊",
+    title: "Health Dashboard",
     subtitle: "Overview of your health vitals, reminders, and recent reports.",
     welcomeUser: "Welcome back, {name}!",
     healthScore: "Health Score",
@@ -131,9 +131,9 @@ export const en = {
 
   // Chat
   chat: {
-    title: "AI Medical Assistant 🤖",
+    title: "AI Medical Assistant",
     subtitle: "Ask symptoms, health advice, or prescription questions in real-time.",
-    greeting: "Namaste 👋 I am AarogyaMitra AI. How can I assist with your health questions today?",
+    greeting: "Namaste, I am AarogyaMitra AI. How can I assist with your health questions today?",
     placeholder: "Type your health concern or symptoms...",
     send: "Send",
     typing: "AI doctor is typing...",
@@ -151,7 +151,7 @@ export const en = {
 
   // Report Analyzer
   reportAnalyzer: {
-    title: "Lab Report & Prescription Scanner 🔬",
+    title: "Lab Report & Prescription Scanner",
     subtitle: "Upload a lab test image or paste test results to receive an instant AI breakdown.",
     dropTitle: "Upload Medical Report Image",
     dropSubtitle: "Drag & drop report photo or click to browse (PNG, JPG, WEBP)",
@@ -175,7 +175,7 @@ export const en = {
 
   // Medicines
   medicines: {
-    title: "Medicine Schedule & Reminders 💊",
+    title: "Medicine Schedule & Reminders",
     subtitle: "Track your daily dosages and set automated reminders.",
     addMedicine: "Add New Medicine",
     medicineName: "Medicine Name",
@@ -190,7 +190,7 @@ export const en = {
 
   // Appointments
   appointments: {
-    title: "Doctor Appointments 📅",
+    title: "Doctor Appointments",
     subtitle: "Manage and schedule consultations with healthcare specialists.",
     bookTitle: "Schedule New Appointment",
     doctorName: "Doctor Name / Specialty",
@@ -206,7 +206,7 @@ export const en = {
 
   // Schemes
   schemes: {
-    title: "Government Health Schemes 🇮🇳",
+    title: "Government Health Schemes",
     subtitle: "Check eligibility for Ayushman Bharat and central/state health benefits.",
     checkEligibility: "Verify Eligibility",
     age: "Age",
@@ -222,7 +222,7 @@ export const en = {
 
   // Hospitals
   hospitals: {
-    title: "Find Nearby Hospitals & Clinics 🏥",
+    title: "Find Nearby Hospitals & Clinics",
     subtitle: "Locate emergency services, government hospitals, and specialist clinics.",
     searchPlaceholder: "Search hospital name, city, or specialty...",
     all: "All Categories",
@@ -235,7 +235,7 @@ export const en = {
 
   // Profile
   profile: {
-    title: "Personal Health Profile 👤",
+    title: "Personal Health Profile",
     subtitle: "Manage your health history, medical records, and contact info.",
     personalDetails: "Personal Details",
     age: "Age",
@@ -253,21 +253,21 @@ export const en = {
 
   // Offline Mode
   offline: {
-    banner: "📡 You're offline. Using Offline Medical Brain.",
-    syncSuccess: "✅ Back online! Syncing your data...",
-    syncFailed: "⚠️ Sync incomplete. Some data will retry later.",
+    banner: "You're offline. Running on local diagnostics.",
+    syncSuccess: "Internet restored. Syncing records securely...",
+    syncFailed: "Sync delayed. Retrying connection shortly.",
     mode: "Offline Mode",
-    riskLow: "✅ Low Risk",
-    riskMedium: "⚠️ Medium Risk",
-    riskHigh: "🔴 High Risk",
-    riskEmergency: "🚨 EMERGENCY",
+    riskLow: "Low Risk",
+    riskMedium: "Medium Risk",
+    riskHigh: "High Risk",
+    riskEmergency: "EMERGENCY",
     offlineLabel: "Offline Medical Brain Active",
     onlineRestored: "Internet restored",
   },
 
   // Settings
   settings: {
-    title: "Account & App Settings ⚙️",
+    title: "Account & App Settings",
     subtitle: "Customize application preferences, language, and security settings.",
     languageSection: "Language Preference / भाषा चुनें",
     languageDesc: "Select your preferred application and AI response language",

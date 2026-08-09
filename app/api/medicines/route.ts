@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("GET medicines error:", error);
 
     return NextResponse.json(
       {
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("POST medicine error:", error);
 
     return NextResponse.json(
       {
@@ -203,7 +203,7 @@ export async function DELETE(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("DELETE medicine error:", error);
 
     return NextResponse.json(
       {
@@ -281,7 +281,7 @@ export async function PATCH(request: Request) {
       }
     );
   } catch (error) {
-    console.log(error);
+    console.error("PATCH medicine error:", error);
 
     return NextResponse.json(
       {

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("CHAT SYNC ERROR:", error);
+    console.error("CHAT SYNC ERROR:", error);
     return NextResponse.json(
       { message: "Sync failed" },
       { status: 500 }

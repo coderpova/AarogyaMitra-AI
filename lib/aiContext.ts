@@ -7,8 +7,8 @@ export async function getAIContext(userId: string) {
   await connectDB();
 
   // Find user by email or _id
-  let user = await User.findOne({ email: userId });
-  if (!user && userId.match(/^[0-9a-fA-F]{24}$/)) {
+  let user = null;
+  if (userId.match(/^[0-9a-fA-F]{24}$/)) {
     user = await User.findById(userId);
   }
 
@@ -20,11 +20,11 @@ export async function getAIContext(userId: string) {
 
   // Query medicines and appointments from their respective collections
   const userMedicines = await Medicine.find({
-    $or: [{ userId: userIdStr }, { userId: user.email }],
+    userId: userIdStr,
   });
 
   const userAppointments = await Appointment.find({
-    $or: [{ userId: userIdStr }, { userId: user.email }],
+    userId: userIdStr,
   });
 
   const context = `

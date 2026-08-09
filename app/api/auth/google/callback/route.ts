@@ -68,15 +68,16 @@ export async function GET(request: NextRequest) {
       { expiresIn: "7d" }
     );
 
-    const params = new URLSearchParams({
-      token,
-      name: user.name,
-      email: user.email,
-      gmail: "true",
-      ...(picture ? { picture } : {}),
+    const response = NextResponse.redirect(`${appUrl}/auth/google-success`);
+    response.cookies.set("oauth_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 300, // 5 minutes
+      path: "/",
     });
 
-    return NextResponse.redirect(`${appUrl}/auth/google-success?${params.toString()}`);
+    return response;
   } catch (err) {
     console.error("Google callback error:", err);
     return NextResponse.redirect(`${appUrl}/login?error=google_callback_failed`);

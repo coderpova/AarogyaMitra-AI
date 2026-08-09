@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import SearchBar from "@/components/hospital/SearchBar";
 import HospitalCard from "@/components/hospital/HospitalCard";
 import { useState } from "react";
+import { MapPin } from "lucide-react";
 import { locations } from "@/data/locations";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -95,7 +96,7 @@ export default function HospitalPage() {
         {/* Header */}
         <div className="bg-blue-700 text-white rounded-3xl p-8 shadow-lg">
           <h1 className="text-3xl sm:text-4xl font-bold">
-            {t("hospitals.title")} 🏥
+            {t("hospitals.title")}
           </h1>
           <p className="text-blue-100 mt-2">{t("hospitals.subtitle")}</p>
         </div>
@@ -164,9 +165,11 @@ export default function HospitalPage() {
               <HospitalCard key={index} hospital={hospital} />
             ))
           ) : (
-            <p className="text-gray-500 dark:text-gray-400">
-              Click search to locate nearby hospitals.
-            </p>
+            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+              <MapPin className="mx-auto mb-2 text-gray-300 dark:text-gray-700 animate-pulse" size={36} />
+              <p className="font-semibold text-sm">No hospital listings shown</p>
+              <p className="text-xs text-gray-400 mt-1">Select state and city parameters, then search to discover local care facilities.</p>
+            </div>
           )}
         </div>
       </div>

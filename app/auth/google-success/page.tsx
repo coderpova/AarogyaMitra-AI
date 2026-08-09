@@ -1,35 +1,35 @@
 "use client";
 
 import { useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
 
 function GoogleSuccessContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { login } = useAuth();
   const { t } = useLanguage();
 
   useEffect(() => {
-    const token = searchParams.get("token");
-    const name = searchParams.get("name");
-    const email = searchParams.get("email");
-    const gmail = searchParams.get("gmail") === "true";
-
-    if (token && name && email) {
-      login(
-        { name, email, gmailConnected: gmail },
-        token
-      );
-      toast.success(t("auth.googleLoginSuccess"));
-      router.replace("/dashboard");
-    } else {
-      toast.error(t("auth.googleLoginFailed"));
-      router.replace("/login");
-    }
-  }, [searchParams, login, router, t]);
+    const fetchSession = async () => {
+      try {
+        const res = await fetch("/api/auth/google/session");
+        if (!res.ok) {
+          throw new Error("Failed to fetch session");
+        }
+        const data = await res.json();
+        login(data.user, data.token);
+        toast.success(t("auth.googleLoginSuccess"));
+        router.replace("/dashboard");
+      } catch (err) {
+        console.error(err);
+        toast.error(t("auth.googleLoginFailed"));
+        router.replace("/login");
+      }
+    };
+    fetchSession();
+  }, [login, router, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-blue-50 dark:bg-gray-950">

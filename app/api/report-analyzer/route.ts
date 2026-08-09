@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     // Prepare content for Groq model
-    let promptText = `
+    const promptText = `
 You are AarogyaMitra AI's Medical Lab Report & Prescription Diagnostic Scanner.
 Analyze the following medical report content / raw lab test text and extract ALL diagnostic markers.
 
@@ -171,7 +171,7 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
       ];
     }
 
-    let modelName = imageBase64 ? "llama-3.2-11b-vision-preview" : "llama-3.1-8b-instant";
+    const modelName = imageBase64 ? "llama-3.2-11b-vision-preview" : "llama-3.1-8b-instant";
 
     let completion;
     try {

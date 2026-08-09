@@ -18,12 +18,18 @@ import {
   Sun,
   X,
   LogOut,
+  Bell,
+  Trash2,
+  AlertTriangle,
+  Shield,
+  MessageSquare,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function Sidebar({
   open,
@@ -37,9 +43,13 @@ export default function Sidebar({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { t } = useLanguage();
+  const { notifications, markAsRead, clearAll } = useNotification();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const { logout } = useAuth();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -71,7 +81,7 @@ export default function Sidebar({
       {/* Mobile overlay */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden transition-opacity duration-300"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden overlay-animation"
           onClick={() => setOpen?.(false)}
           aria-hidden="true"
         />
@@ -101,14 +111,112 @@ export default function Sidebar({
                 <p className="text-blue-200 text-xs">{t("navExt.aiHealthcare")}</p>
               </div>
             </div>
-            <button
-              onClick={() => setOpen?.(false)}
-              className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
-              aria-label="Close menu"
-            >
-              <X size={22} />
-            </button>
+
+            {/* Notification Bell Dropdown */}
+            <div className="relative shrink-0 flex items-center gap-1">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className={`relative p-2 rounded-xl transition-all duration-200 ${
+                  notifOpen ? "bg-white/20 text-white" : "hover:bg-white/10 text-blue-100"
+                }`}
+                aria-label="Toggle notifications"
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-blue-700 animate-pulse" />
+                )}
+              </button>
+              
+              {open && setOpen && (
+                <button
+                  onClick={() => setOpen(false)}
+                  className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors text-blue-100"
+                  aria-label="Close menu"
+                >
+                  <X size={22} />
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Absolute floating panel for notifications list dropdown */}
+          {notifOpen && (
+            <div className="absolute left-4 right-4 mt-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-4 z-50 space-y-3 text-xs modal-animation max-w-sm">
+              <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="font-bold text-sm text-gray-800 dark:text-gray-200">Notifications</span>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={() => {
+                      clearAll();
+                      setNotifOpen(false);
+                    }}
+                    className="text-red-600 dark:text-red-400 hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <Trash2 size={12} /> Clear all
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-2 sidebar-scroll">
+                {notifications.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 dark:text-gray-600">
+                    <Bell className="mx-auto mb-2 text-gray-300 dark:text-gray-700" size={32} />
+                    <p className="font-semibold text-xs">No notifications yet</p>
+                    <p className="text-[10px] mt-0.5">Your reminders and alerts will appear here.</p>
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => markAsRead(n.id)}
+                      className={`p-2.5 rounded-2xl transition cursor-pointer flex gap-2.5 items-start ${
+                        n.read
+                          ? "hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                          : "bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-l-2 border-blue-500"
+                      }`}
+                    >
+                      <div className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 shrink-0 mt-0.5">
+                        {n.category === "medication" ? (
+                          <Pill size={12} className="text-blue-600" />
+                        ) : n.category === "appointment" ? (
+                          <Calendar size={12} className="text-purple-600" />
+                        ) : n.category === "emergency" ? (
+                          <AlertTriangle size={12} className="text-red-600 animate-pulse" />
+                        ) : n.category === "message" ? (
+                          <MessageSquare size={12} className="text-teal-600" />
+                        ) : n.category === "security" ? (
+                          <Shield size={12} className="text-amber-600" />
+                        ) : (
+                          <Bell size={12} className="text-gray-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start gap-1">
+                          <p className={`font-semibold truncate ${n.read ? "text-gray-700 dark:text-gray-300" : "text-gray-900 dark:text-white"}`}>
+                            {n.title}
+                          </p>
+                          <span className="text-[10px] text-gray-400 shrink-0">{n.timestamp}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">
+                          {n.text}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+                <Link
+                  href="/settings"
+                  onClick={() => setNotifOpen(false)}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  Notification settings &rarr;
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Scrollable nav */}

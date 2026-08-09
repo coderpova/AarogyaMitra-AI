@@ -36,6 +36,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useNotification } from "@/context/NotificationContext";
 import { getOfflineReply, createSession, ConversationSession } from "@/lib/offline/offlineChat";
 import { saveOfflineChat, getOfflineChats } from "@/lib/offlineStorage";
 import { checkAndSync } from "@/lib/syncManager";
@@ -93,6 +94,7 @@ export default function ChatPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { t, speechLang, language } = useLanguage();
+  const { addNotification } = useNotification();
 
   const QUICK_ACTIONS = [
     { icon: Stethoscope, label: t("chatExt.actSymptom"), prompt: t("chatExt.promptSymptom") },
@@ -115,7 +117,7 @@ export default function ChatPage() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
 
   // ── Offline State ──────────────────────────────────────────────────────────
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
   const [syncing, setSyncing] = useState(false);
   const [syncBanner, setSyncBanner] = useState<string | null>(null);
 
@@ -126,8 +128,6 @@ export default function ChatPage() {
 
   // ── Network Detection ──────────────────────────────────────────────────────
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-
     const handleOnline = async () => {
       setIsOnline(true);
       setSyncBanner(t("offline.syncSuccess"));
@@ -165,6 +165,7 @@ export default function ChatPage() {
 
   // Initialize greeting
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages((prev) => {
       if (prev.length === 0) {
         return [
@@ -232,7 +233,19 @@ export default function ChatPage() {
 
   // AUTO SCROLL
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const chatContainer = chatEndRef.current?.parentElement;
+    if (!chatContainer) return;
+
+    // Check if user is close to the bottom (within 200px)
+    const isAtBottom =
+      chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 200;
+
+    const lastMessage = messages[messages.length - 1];
+    const userJustSent = lastMessage?.role === "user";
+
+    if (isAtBottom || userJustSent) {
+      chatEndRef.current?.scrollIntoView({ behavior: userJustSent ? "smooth" : "auto" });
+    }
   }, [messages]);
 
   // LOAD OLD CHAT HISTORY
@@ -379,7 +392,7 @@ export default function ChatPage() {
   };
 
   // SEND MESSAGE — streaming support
-  const sendMessage = async (textOverride?: string, reportCtx?: string) => {
+  async function sendMessage(textOverride?: string, reportCtx?: string) {
     const userText = textOverride || message;
     if (!userText.trim() || loading) return;
 
@@ -442,6 +455,11 @@ export default function ChatPage() {
             };
             return updated;
           });
+          addNotification(
+            "emergency",
+            "Emergency Symptom Alert",
+            "Urgent symptoms detected. Review emergency care details immediately."
+          );
         } else {
           // Streaming response
           const reader = res.body!.getReader();
@@ -482,6 +500,13 @@ export default function ChatPage() {
             };
             return updated;
           });
+          if (typeof document !== "undefined" && (document.hidden || window.location.pathname !== "/chat")) {
+            addNotification(
+              "message",
+              "Analysis Response Complete",
+              "AarogyaMitra has finished generating your healthcare advice."
+            );
+          }
         }
       } else {
         // ── OFFLINE PATH ──────────────────────────────────────────────────────
@@ -560,7 +585,7 @@ export default function ChatPage() {
       setLoading(false);
       setStreaming(false);
     }
-  };
+  }
 
   // CLEAR CHAT
   const clearChat = () => {
@@ -776,7 +801,9 @@ export default function ChatPage() {
             >
               {msg.role === "ai" && (
                 <div className={`mt-1 shrink-0 p-2 rounded-full ${
-                  msg.emergency
+                  msg.isStreaming && isLast
+                    ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 animate-pulse"
+                    : msg.emergency
                     ? "bg-red-100 dark:bg-red-950/50 text-red-600"
                     : isOnline
                     ? "bg-gradient-to-br from-blue-100 to-teal-100 dark:from-blue-900/50 dark:to-teal-900/50 text-blue-600"
@@ -847,7 +874,7 @@ export default function ChatPage() {
 
                 {/* SUGGESTED REPLIES */}
                 {msg.role === "ai" && msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2 chat-extra-fade">
                     {msg.suggestions.map((suggestion, sIdx) => (
                       <button
                         key={sIdx}
@@ -862,7 +889,7 @@ export default function ChatPage() {
 
                 {/* INTEGRATION ACTION BUTTONS */}
                 {msg.role === "ai" && msg.actions && msg.actions.length > 0 && !msg.isStreaming && (
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2 chat-extra-fade">
                     {msg.actions.map((action, aIdx) => {
                       const Icon = ACTION_ICONS[action.icon] || Activity;
                       return (
@@ -893,7 +920,7 @@ export default function ChatPage() {
         {/* Typing indicator when loading but not yet streaming */}
         {loading && !streaming && (
           <div className="flex gap-3 items-start chat-msg-ai">
-            <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600">
+            <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 animate-pulse">
               <Bot size={22} />
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">

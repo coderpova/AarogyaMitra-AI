@@ -14,6 +14,8 @@ import {
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
+import { useNotification } from "@/context/NotificationContext";
 
 interface AppointmentItem {
   _id: string;
@@ -27,6 +29,7 @@ interface AppointmentItem {
 
 export default function AppointmentsPage() {
   const { t } = useLanguage();
+  const { refreshSchedules } = useNotification();
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -38,10 +41,6 @@ export default function AppointmentsPage() {
     date: "",
     time: "",
   });
-
-  useEffect(() => {
-    fetchAppointments();
-  }, []);
 
   const fetchAppointments = async () => {
     try {
@@ -60,6 +59,7 @@ export default function AppointmentsPage() {
       const data = await res.json();
       if (res.ok) {
         setAppointments(data.appointments || []);
+        refreshSchedules();
       } else {
         toast.error(data.message || t("appointmentsExt.errLoad"));
       }
@@ -70,6 +70,10 @@ export default function AppointmentsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
 
   const handleBookAppointment = async () => {
     if (
@@ -107,6 +111,7 @@ export default function AppointmentsPage() {
           time: "",
         });
         setShowForm(false);
+        refreshSchedules();
       } else {
         toast.error(data.message || t("appointmentsExt.errBook"));
       }
@@ -132,6 +137,7 @@ export default function AppointmentsPage() {
       if (res.ok) {
         toast.success(`Appointment status updated`);
         setAppointments(data.appointments || []);
+        refreshSchedules();
       } else {
         toast.error(data.message || t("appointmentsExt.errUpdate"));
       }
@@ -157,6 +163,7 @@ export default function AppointmentsPage() {
       if (res.ok) {
         toast.success(t("appointmentsExt.succDelete"));
         setAppointments(data.appointments || []);
+        refreshSchedules();
       } else {
         toast.error(data.message || t("appointmentsExt.errDelete"));
       }
@@ -169,7 +176,7 @@ export default function AppointmentsPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="p-10 text-xl font-medium">{t("common.loading")}</div>
+        <LoadingSkeleton text="Loading your appointments securely..." />
       </DashboardLayout>
     );
   }

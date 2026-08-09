@@ -126,7 +126,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {menuOpen && (
-        <div className="md:hidden p-5 flex flex-col gap-4 border-t bg-white dark:bg-gray-900 dark:text-white">
+        <div className="md:hidden p-5 flex flex-col gap-4 border-t bg-white dark:bg-gray-900 dark:text-white mobile-menu-animation">
           <Link href="/" onClick={() => setMenuOpen(false)}>
             {t("nav.home")}
           </Link>

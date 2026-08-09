@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import Chat from "@/models/chat";
 import User from "@/models/User";
@@ -32,24 +33,37 @@ export async function POST(req: Request) {
 
     await connectDB();
 
-    if (userId && userId !== "guest") {
-      try {
-        let dbUser = null;
-        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
-          dbUser = await User.findById(userId);
-        } else {
-          dbUser = await User.findOne({ email: userId });
-        }
+    let authenticatedUserId = null;
+    const authHeader = req.headers.get("authorization");
+    let token = authHeader ? authHeader.split(" ")[1] : null;
 
+    if (!token) {
+      const cookieHeader = req.headers.get("cookie") || "";
+      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
+      token = match ? match[1] : null;
+    }
+
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        authenticatedUserId = decoded.userId;
+      } catch (err) {
+        // ignore invalid token
+      }
+    }
+
+    const resolvedUserId = authenticatedUserId || "guest";
+
+    if (resolvedUserId && resolvedUserId !== "guest") {
+      try {
+        const dbUser = await User.findById(resolvedUserId);
         if (dbUser?.settings?.language) {
           selectedLang = dbUser.settings.language;
         }
       } catch (userErr) {
-        console.log("User language lookup fallback:", userErr);
+        console.error("User language lookup fallback:", userErr);
       }
     }
-
-    console.log("AI Language:", selectedLang);
 
     // ── EMERGENCY PRE-CHECK ───────────────────────────────────────────────────
     const emergency = detectEmergency(message);
@@ -62,12 +76,12 @@ export async function POST(req: Request) {
       // Save emergency interaction to DB
       try {
         await Chat.create({
-          userId: userId || "guest",
+          userId: resolvedUserId,
           message: message,
           reply: emergencyReply,
         });
       } catch (dbError) {
-        console.log("Mongo Save Error:", dbError);
+        console.error("Mongo Save Error:", dbError);
       }
 
       return NextResponse.json({
@@ -82,11 +96,11 @@ export async function POST(req: Request) {
 
     // ── AI USER CONTEXT ────────────────────────────────────────────────────────
     let userContext = "";
-    if (userId && userId !== "guest") {
+    if (resolvedUserId && resolvedUserId !== "guest") {
       try {
-        userContext = await getAIContext(userId);
+        userContext = await getAIContext(resolvedUserId);
       } catch (error) {
-        console.log("AI Context Error:", error);
+        console.error("AI Context Error:", error);
       }
     }
 
@@ -144,16 +158,15 @@ export async function POST(req: Request) {
           // Save full reply to MongoDB after streaming completes
           try {
             await Chat.create({
-              userId: userId || "guest",
+              userId: resolvedUserId,
               message: message,
               reply: fullReply,
             });
-            console.log("Chat Saved (streamed) ✅");
           } catch (dbError) {
-            console.log("Mongo Save Error:", dbError);
+            console.error("Mongo Save Error:", dbError);
           }
         } catch (error) {
-          console.log("Streaming error:", error);
+          console.error("Streaming error:", error);
           controller.error(error);
         }
       },
@@ -167,7 +180,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.log("GROQ ERROR:", error);
+    console.error("GROQ ERROR:", error);
     return NextResponse.json(
       { message: "AI response failed" },
       { status: 500 }

@@ -17,15 +17,31 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import Cookies from "js-cookie";
 import toast from "react-hot-toast";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const { logout } = useAuth();
   const { language, setLanguage, supportedLanguages, t } = useLanguage();
+  const {
+    notificationsEnabled,
+    setNotificationsEnabled,
+    soundsEnabled,
+    setSoundsEnabled,
+    medicationSounds,
+    setMedicationSounds,
+    appointmentSounds,
+    setAppointmentSounds,
+    alertSounds,
+    setAlertSounds,
+    browserPermission,
+    requestBrowserPermission,
+  } = useNotification();
 
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -126,25 +142,115 @@ export default function SettingsPage() {
 
           {/* Theme Switch Card */}
           <SettingCard
-            icon={theme === "dark" ? <Sun size={24} /> : <Moon size={24} />}
+            icon={!mounted ? <Moon size={24} /> : (theme === "dark" ? <Sun size={24} /> : <Moon size={24} />)}
             title={t("settings.appearance")}
             description={t("settings.appearanceDesc")}
             actionLabel={
-              theme === "dark"
+              !mounted
+                ? t("settings.configure")
+                : theme === "dark"
                 ? t("settings.switchToLight")
                 : t("settings.switchToDark")
             }
-            onAction={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onAction={() => {
+              if (mounted) setTheme(theme === "dark" ? "light" : "dark");
+            }}
           />
 
           {/* Notifications Card */}
-          <SettingCard
-            icon={<Bell size={24} />}
-            title={t("settings.notifications")}
-            description={t("settings.notificationsDesc")}
-            actionLabel={t("settings.configure")}
-            onAction={() => toast.success(t("settings.notifications"))}
-          />
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-md space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950 text-blue-600 rounded-2xl">
+                <Bell size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-800 dark:text-white text-base">{t("settings.notifications")}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("settings.notificationsDesc")}</p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 space-y-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center">
+                <span>Receive Notifications</span>
+                <input
+                  type="checkbox"
+                  checked={notificationsEnabled}
+                  onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                  className="w-5 h-5 rounded accent-blue-600 cursor-pointer"
+                />
+              </div>
+
+              {notificationsEnabled && (
+                <>
+                  <div className="flex justify-between items-center pl-4">
+                    <span>Notification Sounds</span>
+                    <input
+                      type="checkbox"
+                      checked={soundsEnabled}
+                      onChange={(e) => setSoundsEnabled(e.target.checked)}
+                      className="w-5 h-5 rounded accent-blue-600 cursor-pointer"
+                    />
+                  </div>
+
+                  {soundsEnabled && (
+                    <div className="space-y-3 pl-8 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between items-center">
+                        <span>Medication reminders</span>
+                        <input
+                          type="checkbox"
+                          checked={medicationSounds}
+                          onChange={(e) => setMedicationSounds(e.target.checked)}
+                          className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>Appointment reminders</span>
+                        <input
+                          type="checkbox"
+                          checked={appointmentSounds}
+                          onChange={(e) => setAppointmentSounds(e.target.checked)}
+                          className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>Important alerts & emergency</span>
+                        <input
+                          type="checkbox"
+                          checked={alertSounds}
+                          onChange={(e) => setAlertSounds(e.target.checked)}
+                          className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Browser notification requester */}
+                  <div className="flex justify-between items-center pl-4">
+                    <div className="flex flex-col">
+                      <span>Browser Push Notifications</span>
+                      <span className="text-[10px] text-gray-400">
+                        {browserPermission === "granted"
+                          ? "Permission allowed by browser"
+                          : browserPermission === "denied"
+                          ? "Permission blocked. Update browser settings."
+                          : "Requires permission request"}
+                      </span>
+                    </div>
+                    {browserPermission !== "granted" && browserPermission !== "denied" ? (
+                      <button
+                        onClick={requestBrowserPermission}
+                        className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Enable
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 uppercase font-bold">{browserPermission}</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
           {/* Privacy Card */}
           <SettingCard

@@ -86,15 +86,6 @@ export async function GET(request: Request) {
 
 
 
-    console.log("GEOAPIFY RESPONSE:", data);
-
-
-
-
-
-
-
-
     const hospitals = (data.features || []).map((place:any)=>{
 
 
@@ -205,7 +196,7 @@ export async function GET(request: Request) {
   catch(error){
 
 
-    console.log("Hospital API Error:", error);
+    console.error("Hospital API Error:", error);
 
 
 

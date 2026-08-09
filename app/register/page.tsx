@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import Cookies from "js-cookie";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -54,17 +53,13 @@ export default function Register() {
         data.token
       );
 
-      Cookies.set("token", data.token, {
-        expires: 7,
-      });
-
       toast.success(t("auth.registerSuccess"));
       setName("");
       setEmail("");
       setPassword("");
       router.push("/dashboard");
     } catch (error) {
-      console.log(error);
+      console.error("Register Error:", error);
       toast.error(t("common.error"));
     }
   };

@@ -9,7 +9,7 @@ import Chat from "@/models/chat";
  */
 export async function POST(req: Request) {
   try {
-    const { userId, message, reply, timestamp } = await req.json();
+    const { userId, message, reply, timestamp, conversationId, title } = await req.json();
 
     if (!userId || !message || !reply) {
       return NextResponse.json(
@@ -24,6 +24,8 @@ export async function POST(req: Request) {
       userId: userId || "guest",
       message,
       reply,
+      conversationId: conversationId || undefined,
+      title: title || undefined,
       createdAt: timestamp ? new Date(timestamp) : new Date()
     });
 

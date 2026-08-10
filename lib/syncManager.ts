@@ -9,7 +9,6 @@ import {
   clearSyncedItems,
   incrementRetries,
   recordSyncTime,
-  getUnsyncedChats,
   markChatsAsSynced,
   SyncQueueItem
 } from "./offlineStorage";
@@ -34,6 +33,39 @@ async function syncChatItem(item: SyncQueueItem): Promise<boolean> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(item.payload)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function syncDeleteChatItem(item: SyncQueueItem): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("token");
+    const conversationId = item.payload.conversationId as string;
+    const res = await fetch(`/api/chat/history?conversationId=${conversationId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: token ? `Bearer ${token}` : ""
+      }
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function syncArchiveChatItem(item: SyncQueueItem): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("token");
+    const conversationId = item.payload.conversationId as string;
+    const isArchived = item.payload.isArchived as boolean;
+    const res = await fetch(`/api/chat/history?conversationId=${conversationId}&archive=${isArchived}`, {
+      method: "PUT",
+      headers: {
+        Authorization: token ? `Bearer ${token}` : ""
+      }
     });
     return res.ok;
   } catch {
@@ -115,6 +147,12 @@ export async function checkAndSync(userId?: string): Promise<SyncResult> {
     switch (item.type) {
       case "chat":
         success = await syncChatItem(item);
+        break;
+      case "delete_chat":
+        success = await syncDeleteChatItem(item);
+        break;
+      case "archive_chat":
+        success = await syncArchiveChatItem(item);
         break;
       case "medicine":
         success = await syncMedicineItem(item);

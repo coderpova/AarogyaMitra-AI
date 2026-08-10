@@ -15,11 +15,14 @@ export interface CachedChat {
   reply: string;
   timestamp: number;
   synced: boolean;
+  conversationId?: string;
+  title?: string;
+  isArchived?: boolean;
 }
 
 export interface SyncQueueItem {
   id: string;
-  type: "chat" | "medicine" | "appointment" | "profile" | "report";
+  type: "chat" | "medicine" | "appointment" | "profile" | "report" | "delete_chat" | "archive_chat";
   payload: Record<string, unknown>;
   timestamp: number;
   retries: number;
@@ -72,7 +75,9 @@ function safeSet(key: string, value: unknown): void {
 export function saveOfflineChat(
   userId: string,
   message: string,
-  reply: string
+  reply: string,
+  conversationId?: string,
+  title?: string
 ): CachedChat {
   const chat: CachedChat = {
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -80,7 +85,10 @@ export function saveOfflineChat(
     message,
     reply,
     timestamp: Date.now(),
-    synced: false
+    synced: false,
+    conversationId,
+    title,
+    isArchived: false
   };
 
   const existing = safeGet<CachedChat[]>(KEYS.CHAT_HISTORY(userId), []);
@@ -90,7 +98,7 @@ export function saveOfflineChat(
   // Add to sync queue
   addToSyncQueue({
     type: "chat",
-    payload: { userId, message, reply, timestamp: chat.timestamp }
+    payload: { userId, message, reply, timestamp: chat.timestamp, conversationId, title }
   });
 
   return chat;
@@ -119,6 +127,86 @@ export function markChatsAsSynced(userId: string, chatIds: string[]): void {
  */
 export function getUnsyncedChats(userId: string): CachedChat[] {
   return getOfflineChats(userId).filter((c) => !c.synced);
+}
+
+/**
+ * Permanently delete a conversation from local cache and sync queue.
+ */
+export function deleteOfflineConversation(
+  userId: string,
+  conversationId: string
+): void {
+  // 1. Remove from local chat history cache
+  const key = KEYS.CHAT_HISTORY(userId);
+  const existing = safeGet<CachedChat[]>(key, []);
+  const updated = existing.filter((c) => {
+    const convoId = c.conversationId || "legacy";
+    return convoId !== conversationId;
+  });
+  safeSet(key, updated);
+
+  // 2. Remove pending chats for this conversation from the sync queue
+  const queueKey = KEYS.SYNC_QUEUE;
+  const queue = safeGet<SyncQueueItem[]>(queueKey, []);
+  const updatedQueue = queue.filter((item) => {
+    if (item.type !== "chat") return true;
+    const itemConvoId = (item.payload.conversationId as string) || "legacy";
+    return itemConvoId !== conversationId;
+  });
+
+  // 3. Queue the delete action if offline
+  if (typeof window !== "undefined" && !navigator.onLine) {
+    updatedQueue.push({
+      id: `delete_${conversationId}_${Date.now()}`,
+      type: "delete_chat",
+      payload: { conversationId },
+      timestamp: Date.now(),
+      retries: 0,
+    });
+  }
+
+  safeSet(queueKey, updatedQueue);
+}
+
+/**
+ * Archive a conversation in local cache and queue sync.
+ */
+export function archiveOfflineConversation(
+  userId: string,
+  conversationId: string,
+  isArchived: boolean = true
+): void {
+  // 1. Update local cache
+  const key = KEYS.CHAT_HISTORY(userId);
+  const existing = safeGet<CachedChat[]>(key, []);
+  const updated = existing.map((c) => {
+    const convoId = c.conversationId || "legacy";
+    if (convoId === conversationId) {
+      return { ...c, isArchived };
+    }
+    return c;
+  });
+  safeSet(key, updated);
+
+  // 2. Queue archive operation if offline
+  if (typeof window !== "undefined" && !navigator.onLine) {
+    const queueKey = KEYS.SYNC_QUEUE;
+    const queue = safeGet<SyncQueueItem[]>(queueKey, []);
+    
+    // Check if we already have an archive request for this conversation, if so replace it
+    const updatedQueue = queue.filter(
+      (item) => !(item.type === "archive_chat" && item.payload.conversationId === conversationId)
+    );
+    
+    updatedQueue.push({
+      id: `archive_${conversationId}_${Date.now()}`,
+      type: "archive_chat",
+      payload: { conversationId, isArchived },
+      timestamp: Date.now(),
+      retries: 0
+    });
+    safeSet(queueKey, updatedQueue);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -31,6 +31,29 @@ const chatSchema = new Schema(
 
     },
 
+    conversationId: {
+
+      type: String,
+
+      required: false,
+
+    },
+
+    title: {
+
+      type: String,
+
+      required: false,
+
+    },
+
+    isArchived: {
+
+      type: Boolean,
+
+      default: false,
+
+    },
 
   },
 

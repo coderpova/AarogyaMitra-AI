@@ -19,6 +19,8 @@ export async function POST(req: Request) {
       language: bodyLang,
       history,
       reportContext,
+      conversationId,
+      title,
     } = await req.json();
 
     if (!message || message.trim() === "") {
@@ -79,6 +81,8 @@ export async function POST(req: Request) {
           userId: resolvedUserId,
           message: message,
           reply: emergencyReply,
+          conversationId: conversationId || undefined,
+          title: title || undefined,
         });
       } catch (dbError) {
         console.error("Mongo Save Error:", dbError);
@@ -161,6 +165,8 @@ export async function POST(req: Request) {
               userId: resolvedUserId,
               message: message,
               reply: fullReply,
+              conversationId: conversationId || undefined,
+              title: title || undefined,
             });
           } catch (dbError) {
             console.error("Mongo Save Error:", dbError);

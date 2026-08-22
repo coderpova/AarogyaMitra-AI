@@ -34,7 +34,30 @@ import {
   FileText,
   Siren,
   TrendingDown,
+  LucideIcon,
 } from "lucide-react";
+
+interface ReportParameter {
+  name: string;
+  value: string;
+  normalRange: string;
+  status: string;
+  explanation?: string;
+}
+
+interface AnalysisResult {
+  _id?: string;
+  title: string;
+  summary: string;
+  specialistToConsult: string;
+  parameters: ReportParameter[];
+  recommendations: string[];
+  createdAt?: string;
+  diseaseProbability?: { disease: string; probability: string }[];
+  confidenceScore?: number;
+  actionPlan?: string[];
+  emergencyWarning?: string;
+}
 
 interface User {
   name: string;
@@ -217,7 +240,7 @@ export default function DashboardPage() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [emergencyOpen, setEmergencyOpen] = useState(false);
@@ -271,7 +294,7 @@ export default function DashboardPage() {
 
   // Load daily metrics from localStorage on mount
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setWaterIntake(getDailyMetric("water", 0));
     setExerciseMin(getDailyMetric("exercise", 0));
     setSleepHrs(getDailyMetric("sleep", 0));
@@ -353,9 +376,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setAnimatedHealthScore(healthScore);
-      setAnimatedSteps(steps);
-      setAnimatedHeartRate(heartRate);
+      setTimeout(() => {
+        setAnimatedHealthScore(healthScore);
+        setAnimatedSteps(steps);
+        setAnimatedHeartRate(heartRate);
+      }, 0);
       return;
     }
 
@@ -388,7 +413,7 @@ export default function DashboardPage() {
   const riskLevel = getRiskLevel(healthScore, reports, t);
 
   // Build health timeline
-  const timelineEvents: Array<{ date: string; title: string; type: string; icon: any }> = [];
+  const timelineEvents: Array<{ date: string; title: string; type: string; icon: LucideIcon }> = [];
   recentReports.forEach((r) => {
     timelineEvents.push({
       date: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "",
@@ -417,7 +442,7 @@ export default function DashboardPage() {
 
   // Build health trends data
   const trendsData = reports.slice(0, 6).reverse().map((r, i) => {
-    const abnormal = r.parameters?.filter((p: any) => p.status !== t("dashboardExt.bmiNormL")).length || 0;
+    const abnormal = r.parameters?.filter((p: ReportParameter) => p.status !== t("dashboardExt.bmiNormL")).length || 0;
     return {
       label: `R${i + 1}`,
       value: abnormal,

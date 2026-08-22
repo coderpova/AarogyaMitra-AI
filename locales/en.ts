@@ -171,6 +171,7 @@ export const en = {
     statusHigh: "High",
     statusLow: "Low",
     statusCritical: "Critical",
+    statusUnknown: "Verification Required",
   },
 
   // Medicines

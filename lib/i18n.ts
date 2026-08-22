@@ -38,14 +38,18 @@ export function t(
   return String(value);
 }
 
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: unknown, path: string): unknown {
   if (!obj || !path) return undefined;
   const parts = path.split(".");
-  let current = obj;
+  let current: unknown = obj;
 
   for (const part of parts) {
-    if (current && typeof current === "object" && part in current) {
-      current = current[part];
+    if (
+      current &&
+      typeof current === "object" &&
+      part in (current as Record<string, unknown>)
+    ) {
+      current = (current as Record<string, unknown>)[part];
     } else {
       return undefined;
     }

@@ -8,8 +8,10 @@ import {
   BadgeCheck,
 } from "lucide-react";
 
+import { Scheme } from "@/lib/schemeMatcher";
+
 interface Props {
-  scheme: any;
+  scheme: Scheme;
 }
 
 export default function SchemeCard({ scheme }: Props) {
@@ -179,7 +181,7 @@ export default function SchemeCard({ scheme }: Props) {
 
 
           {
-            scheme.documents?.length > 0 ? (
+            scheme.documents && scheme.documents.length > 0 ? (
 
               scheme.documents.map(
                 (doc:string,index:number)=>(

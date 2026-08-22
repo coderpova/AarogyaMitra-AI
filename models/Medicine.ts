@@ -1,4 +1,4 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import { Schema, models, model } from "mongoose";
 
 const MedicineSchema = new Schema(
   {
@@ -32,6 +32,18 @@ const MedicineSchema = new Schema(
     taken: {
       type: Boolean,
       default: false,
+    },
+
+    source: {
+      type: String,
+      enum: ["USER_REPORTED", "PRESCRIPTION", "USER_CONFIRMED"],
+      default: "USER_REPORTED",
+    },
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {

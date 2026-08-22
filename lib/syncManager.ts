@@ -29,10 +29,16 @@ export interface SyncResult {
 
 async function syncChatItem(item: SyncQueueItem): Promise<boolean> {
   try {
+    const token = localStorage.getItem("token");
+    const payloadWithoutUser = { ...item.payload };
+    delete payloadWithoutUser.userId;
     const res = await fetch("/api/chat/sync", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(item.payload)
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify(payloadWithoutUser)
     });
     return res.ok;
   } catch {

@@ -1,5 +1,11 @@
+interface HealthSymptom {
+  name: string;
+  emergency?: boolean;
+  questions?: string[];
+}
+
 interface HealthData {
-  symptoms: string[];
+  symptoms: HealthSymptom[];
   duration?: string;
   temperature?: number;
   chestPain?: boolean;
@@ -20,7 +26,7 @@ export function calculateRisk(data: HealthData) {
 
   // Check if any symptom is marked as emergency
   const hasEmergency = data.symptoms.some(
-    (s: any) => s.emergency === true
+    (s) => s.emergency === true
   );
   if (hasEmergency) {
     return {

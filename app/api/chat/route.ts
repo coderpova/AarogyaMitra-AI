@@ -1,3 +1,4 @@
+// frontend/app/api/chat/route.ts
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import jwt from "jsonwebtoken";
@@ -6,6 +7,17 @@ import Chat from "@/models/chat";
 import User from "@/models/User";
 import { getAIContext } from "@/lib/aiContext";
 import { detectEmergency, buildDoctorSystemPrompt } from "@/lib/healthAssistant";
+import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital } from "@/lib/chatActions";
+import { isMedicalQuery, retrieveKnowledge, resolveContextualQuery } from "@/lib/ragService";
+import { validateMedicalSafety } from "@/lib/safetyValidator";
+import { resolvePersonalHealthContext } from "@/lib/personalHealthContext";
+import { signJwt, verifyJwt } from "@/lib/jwtHelper";
+import { enforceRequestSize } from "@/lib/requestSizeValidator";
+import { rateLimit } from "@/lib/rateLimiter";
+import logger from "@/lib/logger";
+import { metrics } from "@/lib/metrics";
+import { mongoFallbackMessage, groqFallbackMessage, ragFallbackMessage, safetyFallbackMessage } from "@/lib/degradedMode";
+
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -50,21 +62,24 @@ export async function POST(req: Request) {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         authenticatedUserId = decoded.userId;
       } catch (err) {
-        // ignore invalid token
+        // invalid token
       }
     }
 
-    const resolvedUserId = authenticatedUserId || "guest";
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { message: "Unauthorized. Please log in to chat." },
+        { status: 401 }
+      );
+    }
 
-    if (resolvedUserId && resolvedUserId !== "guest") {
-      try {
-        const dbUser = await User.findById(resolvedUserId);
-        if (dbUser?.settings?.language) {
-          selectedLang = dbUser.settings.language;
-        }
-      } catch (userErr) {
-        console.error("User language lookup fallback:", userErr);
+    try {
+      const dbUser = await User.findById(authenticatedUserId);
+      if (dbUser?.settings?.language) {
+        selectedLang = dbUser.settings.language;
       }
+    } catch (userErr) {
+      console.error("User language lookup fallback:", userErr);
     }
 
     // ── EMERGENCY PRE-CHECK ───────────────────────────────────────────────────
@@ -78,7 +93,7 @@ export async function POST(req: Request) {
       // Save emergency interaction to DB
       try {
         await Chat.create({
-          userId: resolvedUserId,
+          userId: authenticatedUserId,
           message: message,
           reply: emergencyReply,
           conversationId: conversationId || undefined,
@@ -98,21 +113,66 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── AI USER CONTEXT ────────────────────────────────────────────────────────
-    let userContext = "";
-    if (resolvedUserId && resolvedUserId !== "guest") {
+    // ── AI PERSONAL HEALTH CONTEXT (PHASE 3.5) ──────────────────────────────
+    let personalContextText = "";
+    let personalContextMeta: any = null;
+    if (authenticatedUserId) {
       try {
-        userContext = await getAIContext(resolvedUserId);
-      } catch (error) {
-        console.error("AI Context Error:", error);
+        const phcResult = await resolvePersonalHealthContext({
+          userId: authenticatedUserId,
+          query: message,
+          conversationContext: history,
+        });
+
+        if (phcResult.hasContext) {
+          personalContextText = phcResult.contextText;
+          personalContextMeta = {
+            itemCount: phcResult.itemCount,
+            resolvedTopic: phcResult.resolvedTopic,
+            provenanceCount: phcResult.provenance.length,
+          };
+          console.log(`[PersonalHealthContext] Resolved ${phcResult.itemCount} authorized items for topic "${phcResult.resolvedTopic}"`);
+        }
+      } catch (phcErr) {
+        console.error("[PersonalHealthContext] Context resolution error:", phcErr);
       }
+    }
+
+    // ── RETRIEVE MEDICAL KNOWLEDGE (RAG) ───────────────────────────────────────
+    let knowledgeContext = "";
+    let retrievedChunks: Array<{ title: string; content: string; category: string; tags: string[]; source: string; evidenceLevel: string; sourceUrl?: string; medicalTopic?: string }> = [];
+    try {
+      // 1. Resolve contextual medical query using history
+      const resolvedQuery = resolveContextualQuery(message, history);
+
+      // 2. Perform medical query detection on resolved query
+      if (isMedicalQuery(resolvedQuery)) {
+        // 3. Retrieve matching chunks using resolved query
+        const chunks = await retrieveKnowledge(resolvedQuery, 3);
+        if (chunks && chunks.length > 0) {
+          retrievedChunks = chunks;
+          knowledgeContext = chunks.map(chunk => 
+            `[Document: ${chunk.title}]
+- Source: ${chunk.source}
+- Source URL: ${chunk.sourceUrl || "N/A"}
+- Evidence Level: ${chunk.evidenceLevel}
+- Medical Topic: ${chunk.medicalTopic || "General"}
+- Content: ${chunk.content}`
+          ).join("\n\n");
+          console.log(`[RAG] Retrieved ${chunks.length} source-aware chunks for resolved query: "${resolvedQuery.substring(0, 30)}..."`);
+        }
+      }
+    } catch (ragErr) {
+      console.error("[RAG] Retrieval failed in route:", ragErr);
     }
 
     // ── BUILD DOCTOR SYSTEM PROMPT ─────────────────────────────────────────────
     const systemPrompt = buildDoctorSystemPrompt(
       selectedLang,
-      userContext,
-      reportContext
+      "",
+      reportContext,
+      knowledgeContext,
+      personalContextText
     );
 
     // Build messages array with conversation history
@@ -137,7 +197,7 @@ export async function POST(req: Request) {
 
     // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
     const stream = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
       messages: messages as any,
       temperature: 0.5,
       max_tokens: 1000,
@@ -150,21 +210,76 @@ export async function POST(req: Request) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          let buffer = "";
+          let isActionTag = false;
+
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || "";
             if (content) {
               fullReply += content;
-              controller.enqueue(encoder.encode(content));
+              buffer += content;
+
+              // Simple tag hiding logic: don't stream if we're currently receiving an action tag
+              if (buffer.includes("[")) {
+                 if (buffer.includes("]") && !buffer.includes("[BOOK_APPOINTMENT") && !buffer.includes("[FIND_HOSPITAL") && !buffer.includes("[/BOOK_APPOINTMENT") && !buffer.includes("[/FIND_HOSPITAL")) {
+                    isActionTag = false;
+                 } else {
+                    isActionTag = true;
+                 }
+              }
+              
+              if (!isActionTag) {
+                 controller.enqueue(encoder.encode(buffer));
+                 buffer = "";
+              } else if (buffer.includes("[/BOOK_APPOINTMENT]") || buffer.includes("[/FIND_HOSPITAL]")) {
+                 // Drop the tag from stream
+                 isActionTag = false;
+                 buffer = ""; 
+              } else if (buffer.length > 500) {
+                 // Safety valve
+                 isActionTag = false;
+                 controller.enqueue(encoder.encode(buffer));
+                 buffer = "";
+              }
             }
           }
+
+          // ── PHASE 2C: POST-GENERATION MEDICAL SAFETY VALIDATION ───────────────
+          const safetyResult = validateMedicalSafety(
+            message,
+            fullReply,
+            retrievedChunks,
+            selectedLang
+          );
+
+          const safeReplyText = safetyResult.sanitizedText || fullReply;
+
+          // Execute Actions after stream and safety validation
+          const actions = parseActionTags(safeReplyText);
+          let actionResultText = "";
+          
+          for (const action of actions) {
+             if (action.actionType === "BOOK_APPOINTMENT") {
+                actionResultText += await executeBookAppointment(authenticatedUserId as string, action.params);
+             } else if (action.actionType === "FIND_HOSPITAL") {
+                actionResultText += await executeFindHospital(action.params);
+             }
+          }
+
+          if (actionResultText) {
+             controller.enqueue(encoder.encode(actionResultText));
+          }
+
+          const cleanedReply = stripActionTags(safeReplyText) + actionResultText;
+
           controller.close();
 
           // Save full reply to MongoDB after streaming completes
           try {
             await Chat.create({
-              userId: resolvedUserId,
+              userId: authenticatedUserId,
               message: message,
-              reply: fullReply,
+              reply: cleanedReply,
               conversationId: conversationId || undefined,
               title: title || undefined,
             });

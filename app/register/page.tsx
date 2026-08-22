@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, User } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function Register() {
@@ -17,12 +17,34 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+
+    if (!cleanName || !cleanEmail || !password) {
       toast.error(t("common.required"));
       return;
     }
+
+    if (cleanName.length < 2) {
+      toast.error("Name must be at least 2 characters long.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await fetch("/api/register", {
@@ -31,8 +53,8 @@ export default function Register() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
-          email,
+          name: cleanName,
+          email: cleanEmail,
           password,
         }),
       });
@@ -49,7 +71,7 @@ export default function Register() {
           name: data.user.name,
           email: data.user.email,
           ...(data.user.settings ? { settings: data.user.settings } : {}),
-        } as any,
+        } as User,
         data.token
       );
 
@@ -61,6 +83,8 @@ export default function Register() {
     } catch (error) {
       console.error("Register Error:", error);
       toast.error(t("common.error"));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,6 +108,7 @@ export default function Register() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t("auth.fullName")}
+            disabled={loading}
           />
         </div>
 
@@ -96,6 +121,7 @@ export default function Register() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t("auth.email")}
+            disabled={loading}
           />
         </div>
 
@@ -108,11 +134,13 @@ export default function Register() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t("auth.password")}
+            disabled={loading}
+            onKeyDown={(e) => e.key === "Enter" && !loading && handleRegister()}
           />
         </div>
 
-        <Button onClick={handleRegister} className="mt-8 w-full h-12 text-base">
-          {t("auth.registerButton")}
+        <Button onClick={handleRegister} disabled={loading} className="mt-8 w-full h-12 text-base">
+          {loading ? "Creating Account..." : t("auth.registerButton")}
         </Button>
 
         <p className="text-center mt-6 text-gray-600 dark:text-gray-400 text-sm">

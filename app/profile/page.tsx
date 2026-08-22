@@ -9,7 +9,6 @@ import {
   HeartPulse,
   Calendar,
   Globe,
-  MapPin,
   Pencil,
   Save,
   Scale,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
+import { User as AuthUser } from "@/context/AuthContext";
 
 /* ── BMI Calculator Component ─────────────────────────────────────────── */
 function BMICalculator() {
@@ -137,7 +137,7 @@ function BMICalculator() {
 
 export default function ProfilePage() {
   const { t, language } = useLanguage();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -150,44 +150,44 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    fetchUser();
-  }, []);
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          toast.error(t("profileExt.errLogin"));
+          return;
+        }
 
-  const fetchUser = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error(t("profileExt.errLogin"));
-        return;
-      }
-
-      const res = await fetch("/api/user", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setUser(data.user);
-        setFormData({
-          age: data.user.profile?.age || "",
-          gender: data.user.profile?.gender || "",
-          bloodGroup: data.user.profile?.bloodGroup || "",
-          phone: data.user.profile?.phone || "",
-          address: data.user.profile?.address || "",
+        const res = await fetch("/api/user", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
-      } else {
-        toast.error(data.message);
+
+        const data = await res.json();
+
+        if (res.ok) {
+          setUser(data.user);
+          setFormData({
+            age: data.user.profile?.age || "",
+            gender: data.user.profile?.gender || "",
+            bloodGroup: data.user.profile?.bloodGroup || "",
+            phone: data.user.profile?.phone || "",
+            address: data.user.profile?.address || "",
+          });
+        } else {
+          toast.error(data.message);
+        }
+      } catch (error) {
+        console.log(error);
+        toast.error(t("common.error"));
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.log(error);
-      toast.error(t("common.error"));
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchUser();
+  }, [t]);
 
   const handleUpdate = async () => {
     try {

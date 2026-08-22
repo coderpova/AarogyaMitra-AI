@@ -2,9 +2,10 @@
 import { useLanguage } from "@/context/LanguageContext";
 
 import SchemeCard from "./SchemeCard";
+import { Scheme } from "@/lib/schemeMatcher";
 
 interface Props {
-  schemes: any[];
+  schemes: Scheme[];
 }
 
 export default function ResultSection({

@@ -9,10 +9,30 @@ export interface UserProfile {
   disability: boolean;
 }
 
+export interface SchemeEligibility {
+  minAge?: number;
+  maxAge?: number;
+  maxIncome?: number;
+  gender?: string;
+  pregnant?: boolean;
+  seniorCitizen?: boolean;
+  disability?: boolean;
+}
+
+export interface Scheme {
+  _id?: string;
+  id?: string;
+  name: string;
+  description: string;
+  benefit: string;
+  documents?: string[];
+  officialLink?: string;
+  eligibility?: SchemeEligibility;
+}
 
 export function matchSchemes(
   user: UserProfile,
-  schemes: any[]
+  schemes: Scheme[]
 ) {
 
   return schemes.filter((scheme) => {

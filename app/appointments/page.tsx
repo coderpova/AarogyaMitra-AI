@@ -73,7 +73,7 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [fetchAppointments]);
 
   const handleBookAppointment = async () => {
     if (

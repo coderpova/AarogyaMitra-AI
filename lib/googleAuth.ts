@@ -7,14 +7,25 @@ export const GMAIL_SCOPES = [
 ];
 
 export function getAppUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
+  }
+  return "http://localhost:3000";
 }
 
 export function getOAuth2Client() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) {
+  if (
+    !clientId ||
+    !clientSecret ||
+    clientId.includes("your_google_client_id_here") ||
+    clientSecret.includes("your_google_client_secret_here")
+  ) {
     throw new Error("Google OAuth credentials not configured");
   }
 

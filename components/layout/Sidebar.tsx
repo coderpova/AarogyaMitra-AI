@@ -49,7 +49,7 @@ export default function Sidebar({
   const { logout } = useAuth();
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
   }, []);
 

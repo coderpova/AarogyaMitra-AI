@@ -5,20 +5,30 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 import Cookies from "js-cookie";
 
-interface User {
+export interface UserProfileData {
+  age?: number;
+  gender?: string;
+  bloodGroup?: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface User {
   name: string;
   email: string;
   settings?: { language?: string };
   gmailConnected?: boolean;
+  profile?: UserProfileData;
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (userData: User, token: string) => void;
+  login: (userData: User, token?: string) => void;
   logout: () => void;
 }
 
@@ -44,21 +54,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("auth-change", checkUser);
   }, []);
 
-  const login = (userData: User, token: string) => {
-    localStorage.setItem("token", token);
+  const login = useCallback((userData: User, token?: string) => {
+    if (token) {
+      localStorage.setItem("token", token);
+      Cookies.set("token", token, { expires: 7 });
+    }
     localStorage.setItem("user", JSON.stringify(userData));
-    Cookies.set("token", token, { expires: 7 });
     setUser(userData);
     window.dispatchEvent(new Event("auth-change"));
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+    } catch (e) {
+      console.error("Logout API error:", e);
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     Cookies.remove("token");
     setUser(null);
     window.dispatchEvent(new Event("auth-change"));
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>

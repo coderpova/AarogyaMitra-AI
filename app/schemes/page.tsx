@@ -1,7 +1,7 @@
 "use client";
 
 import EligibilityForm from "@/components/schemes/EligibilityForm";
-import { matchSchemes, UserProfile } from "@/lib/schemeMatcher";
+import { matchSchemes, UserProfile, Scheme } from "@/lib/schemeMatcher";
 import { useState, useEffect, useRef } from "react";
 import ResultSection from "@/components/schemes/ResultSection";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -20,8 +20,8 @@ export default function SchemesPage() {
     disability: false,
   });
 
-  const [schemes, setSchemes] = useState<any[]>([]);
-  const [eligibleSchemes, setEligibleSchemes] = useState<any[]>([]);
+  const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [eligibleSchemes, setEligibleSchemes] = useState<Scheme[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

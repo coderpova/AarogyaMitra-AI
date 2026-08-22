@@ -173,6 +173,7 @@ export const hi: TranslationKeys = {
     statusHigh: "उच्च (High)",
     statusLow: "कम (Low)",
     statusCritical: "गंभीर (Critical)",
+    statusUnknown: "सत्यापन आवश्यक",
   },
 
   // Medicines

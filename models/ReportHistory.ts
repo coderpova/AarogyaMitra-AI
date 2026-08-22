@@ -1,4 +1,4 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import { Schema, models, model } from "mongoose";
 
 const ReportHistorySchema = new Schema(
   {
@@ -26,7 +26,7 @@ const ReportHistorySchema = new Schema(
         normalRange: String,
         status: {
           type: String,
-          enum: ["Normal", "High", "Low", "Critical"],
+          enum: ["Normal", "High", "Low", "Critical", "Unknown"],
           default: "Normal",
         },
         explanation: {
@@ -51,6 +51,10 @@ const ReportHistorySchema = new Schema(
     emergencyWarning: {
       type: String,
       default: "",
+    },
+    isSample: {
+      type: Boolean,
+      default: false,
     },
   },
   {

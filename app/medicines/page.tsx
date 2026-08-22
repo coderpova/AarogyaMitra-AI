@@ -2,7 +2,7 @@
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Pill, Clock, Trash2, Plus, WifiOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
@@ -13,10 +13,25 @@ import {
   saveMedicineOffline,
 } from "@/lib/offlineStorage";
 
+interface Medicine {
+  _id?: string;
+  id?: string;
+  name: string;
+  dose: string;
+  time: string;
+  reminder: boolean;
+  taken?: boolean;
+  _pendingSync?: boolean;
+}
+
+function generateOfflineId() {
+  return `offline_${Date.now()}`;
+}
+
 export default function MedicinesPage() {
   const { t } = useLanguage();
   const { refreshSchedules } = useNotification();
-  const [medicines, setMedicines] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
@@ -47,12 +62,14 @@ export default function MedicinesPage() {
     reminder: false,
   });
 
-  const fetchMedicines = async () => {
+  const fetchMedicines = useCallback(async () => {
     // Offline: load from cache
     if (!navigator.onLine) {
       const cached = getCachedMedicines();
-      setMedicines(cached as any[]);
-      setLoading(false);
+      setTimeout(() => {
+        setMedicines(cached as Medicine[]);
+        setLoading(false);
+      }, 0);
       return;
     }
 
@@ -76,11 +93,11 @@ export default function MedicinesPage() {
       console.log("Medicines fetch failed, using cache:", error);
       // Fallback to cache on error
       const cached = getCachedMedicines();
-      setMedicines(cached as any[]);
+      setMedicines(cached as Medicine[]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshSchedules]);
 
   // ── Network Detection ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -97,11 +114,13 @@ export default function MedicinesPage() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [fetchMedicines]);
 
   useEffect(() => {
-    fetchMedicines();
-  }, []);
+    setTimeout(() => {
+      fetchMedicines();
+    }, 0);
+  }, [fetchMedicines]);
 
   const addMedicine = async () => {
     if (!formData.name || !formData.dose || !formData.time) {
@@ -114,7 +133,7 @@ export default function MedicinesPage() {
       saveMedicineOffline(formData as Record<string, unknown>);
       const newMed = {
         ...formData,
-        _id: `offline_${Date.now()}`,
+        _id: generateOfflineId(),
         _pendingSync: true,
       };
       const updated = [...medicines, newMed];
@@ -394,7 +413,7 @@ export default function MedicinesPage() {
                     </div>
 
                     <button
-                      onClick={() => deleteMedicine(medicine._id)}
+                      onClick={() => deleteMedicine(medicine._id || medicine.id || "")}
                       className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
                       title={t("common.delete")}
                     >

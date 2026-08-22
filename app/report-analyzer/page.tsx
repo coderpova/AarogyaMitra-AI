@@ -19,7 +19,7 @@ import {
   FlaskConical,
   ListChecks,
   Siren,
-  Timer,
+  HeartPulse,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
@@ -74,22 +74,7 @@ export default function ReportAnalyzerPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<"scan" | "history">("scan");
-  const [loadingStage, setLoadingStage] = useState(0);
 
-  useEffect(() => {
-    if (!loading) {
-      setTimeout(() => setLoadingStage(0), 0);
-      return;
-    }
-    const timer1 = setTimeout(() => setLoadingStage(1), 800);
-    const timer2 = setTimeout(() => setLoadingStage(2), 2000);
-    const timer3 = setTimeout(() => setLoadingStage(3), 3200);
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, [loading]);
 
   const fetchHistory = async () => {
     try {
@@ -109,6 +94,7 @@ export default function ReportAnalyzerPage() {
   };
 
   useEffect(() => {
+
     fetchHistory();
   }, []);
 
@@ -131,7 +117,7 @@ export default function ReportAnalyzerPage() {
     reader.readAsDataURL(file);
   };
 
-  const analyzeReport = async (textToUse?: string) => {
+  const analyzeReport = async (textToUse?: string, isSample?: boolean) => {
     const text = textToUse !== undefined ? textToUse : reportText;
 
     if (!text.trim() && !imageBase64) {
@@ -158,17 +144,23 @@ export default function ReportAnalyzerPage() {
           reportText: text,
           imageBase64: imageBase64,
           language: language,
+          isSample: isSample === true,
         }),
       });
 
       const data = await res.json();
+      
+      if (!res.ok) {
+        console.log(`[ReportAnalyzer UI] Status: ${res.status}`);
+        console.log(`[ReportAnalyzer UI] Error: ${data.error || data.message}`);
+      }
 
       if (res.ok && data.analysis) {
         setAnalysis(data.analysis);
         toast.success(t("common.success"));
         fetchHistory();
       } else {
-        toast.error(data.message || t("common.error"));
+        toast.error(data.error || data.message || t("common.error"));
       }
     } catch (error) {
       console.error(error);
@@ -182,7 +174,7 @@ export default function ReportAnalyzerPage() {
     setReportText(sampleText);
     setImageBase64(null);
     setImagePreview(null);
-    analyzeReport(sampleText);
+    analyzeReport(sampleText, true);
   };
 
   // Consult AI Doctor — stores report context in sessionStorage and navigates to chat
@@ -228,6 +220,12 @@ export default function ReportAnalyzerPage() {
         return (
           <span className="bg-rose-600 text-white font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1 w-fit animate-pulse">
             <AlertTriangle size={14} /> {t("reportAnalyzer.statusCritical")}
+          </span>
+        );
+      case "Unknown":
+        return (
+          <span className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold px-3 py-1 rounded-full text-xs flex items-center gap-1 w-fit">
+            <Info size={14} /> {t("reportAnalyzer.statusUnknown")}
           </span>
         );
       default:
@@ -336,7 +334,7 @@ export default function ReportAnalyzerPage() {
                       Browse File
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,application/pdf"
                         onChange={handleImageUpload}
                         className="hidden"
                       />
@@ -389,46 +387,29 @@ export default function ReportAnalyzerPage() {
             {/* Analysis Output Column */}
             <div className="lg:col-span-7">
               {loading ? (
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 sm:p-12 text-center shadow-lg h-full flex flex-col items-center justify-center min-h-[350px]">
-                  <div className="w-full max-w-sm mx-auto space-y-6 text-left">
-                    <h3 className="text-base font-bold text-gray-900 dark:text-white text-center mb-6">Analyzing Health Report</h3>
-                    <div className="space-y-4">
-                      {[
-                        { label: "Uploading report data", stage: 0 },
-                        { label: "Reading parameter values", stage: 1 },
-                        { label: "Analyzing health indicators", stage: 2 },
-                        { label: "Preparing medical insights", stage: 3 }
-                      ].map((item) => {
-                        const isCompleted = loadingStage > item.stage;
-                        const isActive = loadingStage === item.stage;
-                        return (
-                          <div
-                            key={item.stage}
-                            className={`flex items-center gap-4 transition-all duration-300 ${
-                              isActive ? "opacity-100 scale-[1.01]" : isCompleted ? "opacity-75" : "opacity-35"
-                            }`}
-                          >
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold transition-all duration-300 ${
-                              isCompleted
-                                ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
-                                : isActive
-                                ? "bg-blue-600 text-white animate-pulse"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-400"
-                            }`}>
-                              {isCompleted ? "✓" : item.stage + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs sm:text-sm truncate ${isActive ? "font-bold text-blue-600 dark:text-blue-400" : "font-medium text-gray-700 dark:text-gray-300"}`}>
-                                {item.label}
-                              </p>
-                            </div>
-                            {isActive && (
-                              <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                            )}
-                          </div>
-                        );
-                      })}
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 sm:p-12 text-center shadow-lg h-full flex flex-col items-center justify-center min-h-[350px] relative overflow-hidden">
+                  <div className="relative flex flex-col items-center justify-center z-10 w-full">
+                    {/* The Logo Container */}
+                    <div className="relative mb-8 mt-4 w-48 h-48 flex items-center justify-center overflow-hidden">
+                      {/* Heartbeat Line Animation behind the logo */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                         <div className="w-[150%] h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-80 ecg-line-anim" />
+                      </div>
+                      
+                      {/* Logo */}
+                      <div className="relative z-10 bg-white dark:bg-gray-900 p-6 rounded-full logo-glow-anim border border-blue-100 dark:border-blue-900">
+                         <HeartPulse size={48} className="text-blue-600 dark:text-blue-400" />
+                      </div>
                     </div>
+                    
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight animate-pulse">
+                       {t("reportAnalyzer.analyzing") || "Analyzing your report..."}
+                    </h3>
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto text-center">
+                       {language === "hi" 
+                          ? "कृपया प्रतीक्षा करें, हमारा एआई आपके स्वास्थ्य रिपोर्ट का विश्लेषण कर रहा है।" 
+                          : "Please wait while our AI medical engine extracts and evaluates your health parameters."}
+                    </p>
                   </div>
                 </div>
               ) : analysis ? (

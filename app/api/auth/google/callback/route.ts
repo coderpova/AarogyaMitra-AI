@@ -62,16 +62,36 @@ export async function GET(request: NextRequest) {
       await user.save();
     }
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("Critical Server Error: JWT_SECRET environment variable is not configured.");
+      return NextResponse.redirect(`${appUrl}/login?error=server_configuration_error`);
+    }
+
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
-      process.env.JWT_SECRET!,
+      { userId: user._id.toString(), email: user.email },
+      jwtSecret,
       { expiresIn: "7d" }
     );
 
+    // Pure redirect without exposed tokens in URL/query string
     const response = NextResponse.redirect(`${appUrl}/auth/google-success`);
+
+    const isProduction = process.env.NODE_ENV === "production" || appUrl.startsWith("https");
+
+    // Permanent HttpOnly auth session cookie
+    response.cookies.set("token", token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    });
+
+    // Temporary HttpOnly OAuth session exchange cookie
     response.cookies.set("oauth_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       sameSite: "lax",
       maxAge: 300, // 5 minutes
       path: "/",

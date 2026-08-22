@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
@@ -10,20 +10,27 @@ function GoogleSuccessContent() {
   const router = useRouter();
   const { login } = useAuth();
   const { t } = useLanguage();
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
     const fetchSession = async () => {
       try {
-        const res = await fetch("/api/auth/google/session");
+        const res = await fetch("/api/auth/google/session", {
+          credentials: "same-origin",
+        });
+
         if (!res.ok) {
           throw new Error("Failed to fetch session");
         }
         const data = await res.json();
-        login(data.user, data.token);
+        login(data.user);
         toast.success(t("auth.googleLoginSuccess"));
         router.replace("/dashboard");
       } catch (err) {
-        console.error(err);
+        console.error("Google session fetch error:", err);
         toast.error(t("auth.googleLoginFailed"));
         router.replace("/login");
       }

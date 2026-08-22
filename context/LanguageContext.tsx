@@ -25,8 +25,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initLanguage = () => {
       // 1. Check logged-in user settings in MongoDB/AuthContext
-      if ((user as any)?.settings?.language) {
-        const userLang = (user as any).settings.language;
+      if (user?.settings?.language) {
+        const userLang = user.settings.language;
         setLanguageState(userLang);
         localStorage.setItem(LANGUAGE_STORAGE_KEY, userLang);
         return;

@@ -50,6 +50,7 @@ interface Message {
   text: string;
   timestamp?: string;
   suggestions?: string[];
+  selectedSuggestionIndices?: number[];
   emergency?: boolean;
   isStreaming?: boolean;
   actions?: IntegrationAction[];
@@ -286,10 +287,14 @@ export default function ChatPage() {
 
     if (navigator.onLine) {
       try {
+        const token = localStorage.getItem("token");
         const res = await fetch("/api/chat/history", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.email }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({}),
         });
 
         const data = await res.json();
@@ -350,7 +355,7 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, t]);
@@ -488,10 +493,14 @@ export default function ChatPage() {
     try {
       let loadedChats: DBChat[] = [];
       if (navigator.onLine) {
+        const token = localStorage.getItem("token");
         const res = await fetch("/api/chat/history", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.email, archived: true }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({ archived: true }),
         });
         const data = await res.json();
         if (res.ok && data.chats) {
@@ -558,7 +567,7 @@ export default function ChatPage() {
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/\*(.*?)\*/g, "$1")
       .replace(/━+/g, "")
-      .replace(/[🚨✅⚠️🔴🩺📋📞💊🏥🩸🦋❤️🧠💡📝🫁🦷👶🤰🩹🧬]/g, "")
+      .replace(/[^\p{L}\p{N}\s.,!?-]/gu, "")
       .replace(/_[^_]+_/g, "")
       .replace(/\n+/g, ". ");
 
@@ -594,64 +603,43 @@ export default function ChatPage() {
   // VOICE INPUT (STT)
   const startListening = () => {
     const SpeechRecognition =
-      (window as Window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition ||
-      (window as Window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+      (window as Window & { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+      (window as Window & { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       alert(t("chatExt.speechNotSupp"));
       return;
     }
 
-    const SpeechClass = SpeechRecognition as new () => {
-      lang: string;
-      continuous: boolean;
-      interimResults: boolean;
-      start: () => void;
-      onresult: (ev: { results: Array<Array<{ transcript: string }>> }) => void;
-      onerror: () => void;
-      onend: () => void;
-    };
-
-    const recognition = new SpeechClass();
-    recognition.lang = speechLang;
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    setVoiceOpen(true);
-    setListening(true);
-
     try {
+      const recognition = new (SpeechRecognition as any)();
+      recognition.lang = speechLang;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setListening(true);
       recognition.start();
-    } catch (error) {
-      console.log("Mic start error", error);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setMessage((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        setListening(false);
+      };
+
+      recognition.onerror = () => {
+        setListening(false);
+      };
+
+      recognition.onend = () => {
+        setListening(false);
+      };
+    } catch {
+      setListening(false);
     }
-
-    recognition.onresult = (event: { results: Array<Array<{ transcript: string }>> }) => {
-      const text = event.results[0][0].transcript;
-      setMessage(text);
-    };
-
-    recognition.onerror = () => {
-      setListening(false);
-      setVoiceOpen(false);
-    };
-
-    recognition.onend = () => {
-      setListening(false);
-      setVoiceOpen(false);
-    };
   };
 
-  // COPY MESSAGE
-  const copyMessage = (text: string, index: number) => {
-    const cleanText = text.replace(/\*\*/g, "").replace(/\*/g, "");
-    navigator.clipboard.writeText(cleanText);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  // SEND MESSAGE — streaming support
-  async function sendMessage(textOverride?: string, reportCtx?: string) {
+// SEND MESSAGE — streaming support
+  async function sendMessage(textOverride?: string, reportCtx?: string, suppressHistory: boolean = false) {
     const userText = textOverride || message;
     if (!userText.trim() || loading) return;
 
@@ -692,12 +680,15 @@ export default function ChatPage() {
 
     try {
       if (isOnline) {
+        const token = localStorage.getItem("token");
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
           body: JSON.stringify({
             message: userText,
-            userId: user?.email || "guest",
             language: language,
             history: messages.slice(-10),
             reportContext: reportCtx,
@@ -731,24 +722,28 @@ export default function ChatPage() {
             "Emergency Symptom Alert",
             "Urgent symptoms detected. Review emergency care details immediately."
           );
-          setTimeout(() => loadHistory(targetConvoId), 500);
+          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
         } else {
           const reader = res.body!.getReader();
           const decoder = new TextDecoder();
           let accumulated = "";
 
+          // eslint-disable-next-line no-constant-condition
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             accumulated += chunk;
+            
+            const { cleanText, suggestions } = parseSuggestedReplies(accumulated);
 
             setMessages((prev) => {
               const updated = [...prev];
               if (updated[aiMessageIndex]) {
                 updated[aiMessageIndex] = {
                   ...updated[aiMessageIndex],
-                  text: accumulated,
+                  text: cleanText,
+                  suggestions: suggestions,
                   isStreaming: true,
                 };
               }
@@ -776,7 +771,7 @@ export default function ChatPage() {
               "AarogyaMitra has finished generating your healthcare advice."
             );
           }
-          setTimeout(() => loadHistory(targetConvoId), 500);
+          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
         }
       } else {
         const { reply, session: updatedSession } = await getOfflineReply(
@@ -803,7 +798,7 @@ export default function ChatPage() {
         if (user?.email) {
           saveOfflineChat(user.email, userText, cleanText, targetConvoId, convoTitle);
         }
-        setTimeout(() => loadHistory(targetConvoId), 500);
+        if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
       }
     } catch (error) {
       console.log(error);
@@ -834,7 +829,7 @@ export default function ChatPage() {
           if (user?.email) {
             saveOfflineChat(user.email, userText, cleanText, targetConvoId, convoTitle);
           }
-          setTimeout(() => loadHistory(targetConvoId), 500);
+          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
           return;
         } catch {
           // both failed
@@ -854,6 +849,30 @@ export default function ChatPage() {
       setLoading(false);
       setStreaming(false);
     }
+  }
+
+  const copyMessage = (text: string, index: number) => {
+    if (typeof window === "undefined") return;
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  // HANDLE SUGGESTION CLICK — marks suggestion as selected and sends it without reloading history
+  function handleSuggestionClick(msgIdx: number, sIdx: number, suggestion: string) {
+    // Update message to record selected suggestion index
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated[msgIdx];
+      if (!msg) return prev;
+      const selected = msg.selectedSuggestionIndices ?? [];
+      if (!selected.includes(sIdx)) {
+        msg.selectedSuggestionIndices = [...selected, sIdx];
+      }
+      return updated;
+    });
+    // Send the suggestion as a user message; suppress automatic history reload to keep UI state
+    sendMessage(suggestion, undefined, true);
   }
 
   // CLEAR CHAT
@@ -1225,19 +1244,20 @@ export default function ChatPage() {
                     </div>
 
                     {/* SUGGESTED REPLIES */}
-                    {isAi && msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
-                      <div className="flex flex-wrap gap-1.5 mt-3 chat-extra-fade">
-                        {msg.suggestions.map((suggestion, sIdx) => (
-                          <button
-                            key={sIdx}
-                            onClick={() => sendMessage(suggestion)}
-                            className="suggestion-chip bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-xs font-semibold transition"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+  {isAi && msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
+    <div className="flex flex-wrap gap-1.5 mt-3 chat-extra-fade">
+      {msg.suggestions.map((suggestion, sIdx) => (
+        <button
+          key={sIdx}
+          onClick={() => handleSuggestionClick(index, sIdx, suggestion)}
+          disabled={msg.selectedSuggestionIndices?.includes(sIdx)}
+          className={`suggestion-chip bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-xs font-semibold transition ${msg.selectedSuggestionIndices?.includes(sIdx) ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  )}
 
                     {/* INTEGRATION ACTION BUTTONS */}
                     {isAi && msg.actions && msg.actions.length > 0 && !msg.isStreaming && (

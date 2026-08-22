@@ -1,4 +1,4 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import { Schema, models, model } from "mongoose";
 
 
 const UserSchema = new Schema(
@@ -406,6 +406,25 @@ const UserSchema = new Schema(
     language: {
       type: String,
       default: "en",
+    },
+  },
+
+  aiPreferences: {
+    allowHealthHistory: {
+      type: Boolean,
+      default: false,
+    },
+    allowMedicalReports: {
+      type: Boolean,
+      default: false,
+    },
+    allowMedications: {
+      type: Boolean,
+      default: false,
+    },
+    allowSymptomTimeline: {
+      type: Boolean,
+      default: false,
     },
   },
 

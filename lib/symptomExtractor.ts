@@ -1,6 +1,17 @@
 import { medicalKnowledge } from "./medicalKnowledge";
 
+interface MedicalKnowledgeItem {
+  keywords: string[];
+  questions?: string[];
+  emergency?: boolean;
+  riskFactors?: string[];
+}
 
+interface DetectedSymptom {
+  name: string;
+  emergency: boolean;
+  questions: string[];
+}
 
 export function extractSymptoms(message:string){
 
@@ -9,7 +20,7 @@ export function extractSymptoms(message:string){
 
 
 
-  const detectedSymptoms:any[] = [];
+  const detectedSymptoms:DetectedSymptom[] = [];
 
 
 
@@ -18,11 +29,11 @@ export function extractSymptoms(message:string){
   // =========================
 
 
-  Object.entries(medicalKnowledge)
-  .forEach(([name,data]:any)=>{
+  (Object.entries(medicalKnowledge) as [string, MedicalKnowledgeItem][])
+  .forEach(([name,data])=>{
 
 
-    data.keywords.forEach((keyword:string)=>{
+    (data.keywords || []).forEach((keyword:string)=>{
 
 
       if(text.includes(keyword.toLowerCase())){

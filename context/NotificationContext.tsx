@@ -473,7 +473,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Sync schedules on mount or focus
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     refreshSchedules();
     if (typeof window !== "undefined") {
       window.addEventListener("focus", refreshSchedules);

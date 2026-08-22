@@ -40,10 +40,82 @@ export default function SettingsPage() {
   } = useNotification();
 
   const [mounted, setMounted] = useState(false);
+  const [aiPreferences, setAiPreferences] = useState({
+    allowHealthHistory: false,
+    allowMedicalReports: false,
+    allowMedications: false,
+    allowSymptomTimeline: false,
+  });
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
+
+    async function fetchAiPreferences() {
+      try {
+        const token = Cookies.get("token") || localStorage.getItem("token");
+        if (!token) return;
+        const res = await fetch("/api/health-profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile?.aiPreferences) {
+            setAiPreferences({
+              allowHealthHistory: data.profile.aiPreferences.allowHealthHistory ?? false,
+              allowMedicalReports: data.profile.aiPreferences.allowMedicalReports ?? false,
+              allowMedications: data.profile.aiPreferences.allowMedications ?? false,
+              allowSymptomTimeline: data.profile.aiPreferences.allowSymptomTimeline ?? false,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load AI preferences:", err);
+      }
+    }
+    fetchAiPreferences();
   }, []);
+
+  const handleToggleAiPref = async (key: keyof typeof aiPreferences, val: boolean) => {
+    const updated = { ...aiPreferences, [key]: val };
+    setAiPreferences(updated);
+    try {
+      const token = Cookies.get("token") || localStorage.getItem("token");
+      await fetch("/api/health-profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ aiPreferences: updated }),
+      });
+      toast.success("AI Preference updated");
+    } catch {
+      toast.error("Failed to save AI preference");
+    }
+  };
+
+  const handleClearAiMemory = async () => {
+    if (!confirm("Are you sure you want to clear AI health memory? This disables all AI context access and clears personal memory.")) return;
+    try {
+      const token = Cookies.get("token") || localStorage.getItem("token");
+      const res = await fetch("/api/health-profile?clearAll=true", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setAiPreferences({
+          allowHealthHistory: false,
+          allowMedicalReports: false,
+          allowMedications: false,
+          allowSymptomTimeline: false,
+        });
+        toast.success("AI Health Memory cleared successfully");
+      }
+    } catch {
+      toast.error("Failed to clear AI memory");
+    }
+  };
 
   const handleLogout = () => {
     Cookies.remove("token");
@@ -249,6 +321,86 @@ export default function SettingsPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Health AI Preferences & Data Controls (Phase 3.5) */}
+          <div className="bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-900/40 rounded-3xl p-6 shadow-md space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                <Shield size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-800 dark:text-white text-base">Health AI Preferences & Data Controls</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Control which personal health data AarogyaMitra AI is authorized to use for personalized context. All options default to OFF for your privacy.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 space-y-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="block font-semibold">Allow AI to use Health History</span>
+                  <span className="text-xs text-gray-400 font-normal">Past conditions and medical history</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aiPreferences.allowHealthHistory}
+                  onChange={(e) => handleToggleAiPref("allowHealthHistory", e.target.checked)}
+                  className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="block font-semibold">Allow AI to use Medical Reports</span>
+                  <span className="text-xs text-gray-400 font-normal">Lab findings and uploaded diagnostic reports</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aiPreferences.allowMedicalReports}
+                  onChange={(e) => handleToggleAiPref("allowMedicalReports", e.target.checked)}
+                  className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="block font-semibold">Allow AI to use Medication Information</span>
+                  <span className="text-xs text-gray-400 font-normal">Currently recorded medications and reminders</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aiPreferences.allowMedications}
+                  onChange={(e) => handleToggleAiPref("allowMedications", e.target.checked)}
+                  className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="block font-semibold">Allow AI to use Symptom Timeline</span>
+                  <span className="text-xs text-gray-400 font-normal">Chronological health events and symptom history</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aiPreferences.allowSymptomTimeline}
+                  onChange={(e) => handleToggleAiPref("allowSymptomTimeline", e.target.checked)}
+                  className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                <span className="text-xs text-gray-500">Disabling permissions stops AI access without deleting stored health records.</span>
+                <button
+                  type="button"
+                  onClick={handleClearAiMemory}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/40 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900 transition"
+                >
+                  Clear AI Health Memory
+                </button>
+              </div>
             </div>
           </div>
 

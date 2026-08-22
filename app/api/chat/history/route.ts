@@ -5,22 +5,47 @@ import jwt from "jsonwebtoken";
 
 export async function POST(req: Request) {
   try {
-    const { userId, conversationId, archived } = await req.json();
+    const { conversationId, archived } = await req.json();
 
-    if(!userId){
+    let authenticatedUserId = null;
+    let authenticatedUserEmail = null;
+    const authHeader = req.headers.get("authorization");
+    let token = authHeader ? authHeader.split(" ")[1] : null;
+
+    if (!token) {
+      const cookieHeader = req.headers.get("cookie") || "";
+      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
+      token = match ? match[1] : null;
+    }
+
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        authenticatedUserId = decoded.userId;
+        authenticatedUserEmail = decoded.email;
+      } catch (err) {
+        // invalid token
+      }
+    }
+
+    if (!authenticatedUserId) {
       return NextResponse.json(
-        {
-          message:"User id required"
-        },
-        {
-          status:400
-        }
+        { message: "Unauthorized. Please log in." },
+        { status: 401 }
       );
     }
 
     await connectDB();
 
-    const query: Record<string, unknown> = { userId };
+    const userIds = [authenticatedUserId];
+    if (authenticatedUserEmail) {
+      userIds.push(authenticatedUserEmail);
+    }
+
+    const query: Record<string, any> = {
+      userId: { $in: userIds }
+    };
+
     if (conversationId) {
       query.conversationId = conversationId;
     } else {
@@ -75,6 +100,7 @@ export async function PUT(req: Request) {
     const isArchived = archiveParam === "true";
 
     let authenticatedUserId = null;
+    let authenticatedUserEmail = null;
     const authHeader = req.headers.get("authorization");
     let token = authHeader ? authHeader.split(" ")[1] : null;
 
@@ -88,16 +114,27 @@ export async function PUT(req: Request) {
       try {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         authenticatedUserId = decoded.userId;
+        authenticatedUserEmail = decoded.email;
       } catch (err) {
-        // ignore invalid token
+        // invalid token
       }
     }
 
-    const resolvedUserId = authenticatedUserId || "guest";
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { message: "Unauthorized. Please log in." },
+        { status: 401 }
+      );
+    }
 
     await connectDB();
 
-    const query: Record<string, any> = { userId: resolvedUserId };
+    const userIds = [authenticatedUserId];
+    if (authenticatedUserEmail) {
+      userIds.push(authenticatedUserEmail);
+    }
+
+    const query: Record<string, any> = { userId: { $in: userIds } };
     if (conversationId === "legacy") {
       query.$or = [
         { conversationId: { $exists: false } },
@@ -136,6 +173,7 @@ export async function DELETE(req: Request) {
     }
 
     let authenticatedUserId = null;
+    let authenticatedUserEmail = null;
     const authHeader = req.headers.get("authorization");
     let token = authHeader ? authHeader.split(" ")[1] : null;
 
@@ -149,16 +187,27 @@ export async function DELETE(req: Request) {
       try {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         authenticatedUserId = decoded.userId;
+        authenticatedUserEmail = decoded.email;
       } catch (err) {
-        // ignore invalid token
+        // invalid token
       }
     }
 
-    const resolvedUserId = authenticatedUserId || "guest";
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { message: "Unauthorized. Please log in." },
+        { status: 401 }
+      );
+    }
 
     await connectDB();
 
-    const deleteQuery: Record<string, any> = { userId: resolvedUserId };
+    const userIds = [authenticatedUserId];
+    if (authenticatedUserEmail) {
+      userIds.push(authenticatedUserEmail);
+    }
+
+    const deleteQuery: Record<string, any> = { userId: { $in: userIds } };
     if (conversationId === "legacy") {
       deleteQuery.$or = [
         { conversationId: { $exists: false } },

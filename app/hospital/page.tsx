@@ -41,8 +41,8 @@ export default function HospitalPage() {
     }
 
     try {
-      let lat = "";
-      let lon = "";
+      let lat: string | number = "";
+      let lon: string | number = "";
 
       if (state && city) {
         const locationResponse = await fetch(
@@ -65,7 +65,7 @@ export default function HospitalPage() {
           return;
         }
 
-        const position: any = await new Promise((resolve, reject) => {
+        const position: GeolocationPosition = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject);
         });
 

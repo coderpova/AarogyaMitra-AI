@@ -17,6 +17,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const error = searchParams.get("error");
@@ -28,16 +29,25 @@ function LoginForm() {
   }, [searchParams, t]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
       toast.error(t("common.required"));
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
 
       const data = await res.json();
@@ -60,8 +70,10 @@ function LoginForm() {
       toast.success(t("auth.loginSuccess"));
       router.push("/dashboard");
     } catch (error) {
-      console.log(error);
+      console.error("Login Error:", error);
       toast.error(t("common.error"));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -87,6 +99,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t("auth.email")}
+            disabled={loading}
           />
         </div>
 
@@ -99,12 +112,13 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t("auth.password")}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            disabled={loading}
+            onKeyDown={(e) => e.key === "Enter" && !loading && handleLogin()}
           />
         </div>
 
-        <Button onClick={handleLogin} className="mt-8 w-full h-12 text-base">
-          {t("auth.loginButton")}
+        <Button onClick={handleLogin} disabled={loading} className="mt-8 w-full h-12 text-base">
+          {loading ? "Signing in..." : t("auth.loginButton")}
         </Button>
 
         <p className="text-center text-gray-600 dark:text-gray-400 mt-6 text-sm">

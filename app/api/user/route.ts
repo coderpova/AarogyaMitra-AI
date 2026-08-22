@@ -14,26 +14,17 @@ export async function GET(request: Request) {
 
 
     const authHeader = request.headers.get("authorization");
+    const cookieToken = (request as any).cookies?.get?.("token")?.value;
+    const token = authHeader ? authHeader.split(" ")[1] : cookieToken;
 
-
-    if (!authHeader) {
-
+    if (!token) {
       return NextResponse.json(
-        {
-          message: "No token provided"
-        },
-        {
-          status: 401
-        }
+        { message: "No token provided" },
+        { status: 401 }
       );
-
     }
 
-
-    const token = authHeader.split(" ")[1];
-
-
-    const decoded:any = jwt.verify(
+    const decoded: any = jwt.verify(
       token,
       process.env.JWT_SECRET!
     );

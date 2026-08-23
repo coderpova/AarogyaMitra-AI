@@ -352,22 +352,28 @@ export function parseSuggestedReplies(text: string): {
   cleanText: string;
   suggestions: string[];
 } {
-  const match = text.match(
+  // Strip any reasoning tags if present
+  const sanitized = text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+    .trim();
+
+  const match = sanitized.match(
     /\[SUGGESTED_REPLIES\]([\s\S]*?)(?:\[\/SUGGESTED_REPLIES\]|$)/
   );
 
   if (!match) {
-    return { cleanText: text, suggestions: [] };
+    return { cleanText: sanitized, suggestions: [] };
   }
 
   const suggestionsRaw = match[1].trim();
   const suggestions = suggestionsRaw
-    .split("|")
-    .map((s) => s.trim())
+    .split(/\r?\n|\|/)
+    .map((s) => s.replace(/^[•\-\d\.]+\s*/, "").trim())
     .filter((s) => s.length > 0)
     .slice(0, 4);
 
-  const cleanText = text.replace(
+  const cleanText = sanitized.replace(
     /\[SUGGESTED_REPLIES\][\s\S]*?(?:\[\/SUGGESTED_REPLIES\]|$)/,
     ""
   ).trim();

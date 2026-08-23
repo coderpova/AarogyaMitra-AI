@@ -23,7 +23,7 @@ export default function Footer({ variant = "default" }: { variant?: "default" | 
 
   if (variant === "minimal") {
     return (
-      <footer className="border-t border-gray-200 dark:border-gray-800 px-6 py-4 transition-colors">
+      <footer className="mt-auto shrink-0 border-t border-gray-200 dark:border-gray-800 px-6 py-4 transition-colors">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
           <p>© {year} AarogyaMitra AI</p>
           <p>{t("footer.tagline")}</p>
@@ -33,7 +33,7 @@ export default function Footer({ variant = "default" }: { variant?: "default" | 
   }
 
   return (
-    <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-colors duration-300">
+    <footer className="mt-auto shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}

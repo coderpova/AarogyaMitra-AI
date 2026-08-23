@@ -1025,7 +1025,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* VOICE POPUP */}
       {voiceOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
@@ -1048,7 +1048,7 @@ export default function ChatPage() {
       )}
 
       {/* DESKTOP SIDEBAR */}
-      <aside className="hidden md:flex flex-col w-72 border-r border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 h-screen shrink-0">
+      <aside className="hidden md:flex flex-col w-72 border-r border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 h-[100dvh] shrink-0">
         <div className="p-4 border-b border-gray-150 dark:border-gray-800 flex items-center gap-3 bg-white dark:bg-gray-900 shrink-0">
           <div className="bg-blue-600 text-white p-2 rounded-xl">
             <HeartPulse size={20} />
@@ -1089,7 +1089,7 @@ export default function ChatPage() {
       )}
 
       {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 bg-gray-50 dark:bg-gray-950">
+      <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden min-w-0 bg-gray-50 dark:bg-gray-950">
         {/* OFFLINE BANNER */}
         {!isOnline && (
           <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0">
@@ -1177,7 +1177,7 @@ export default function ChatPage() {
         </div>
 
         {/* CHAT MESSAGES SCROLL WRAPPER */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-6">
           <div className="w-full max-w-3xl mx-auto flex flex-col gap-6">
             {messages.map((msg, index) => {
               const isLast = index === messages.length - 1;

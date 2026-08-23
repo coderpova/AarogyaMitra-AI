@@ -199,12 +199,14 @@ export async function POST(req: Request) {
 
     // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
     const groq = getGroqClient();
-    const stream = await groq.chat.completions.create({
+    const stream = await (groq.chat.completions as any).create({
       model: process.env.GROQ_MODEL || "qwen/qwen3.6-27b",
       messages: messages as any,
       temperature: 0.5,
       max_tokens: 1000,
       stream: true,
+      reasoning_format: "hidden",
+      reasoning_effort: "none",
     });
 
     const encoder = new TextEncoder();
@@ -215,6 +217,7 @@ export async function POST(req: Request) {
         try {
           let buffer = "";
           let isActionTag = false;
+          let isThinkingTag = false;
 
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || "";
@@ -222,7 +225,23 @@ export async function POST(req: Request) {
               fullReply += content;
               buffer += content;
 
-              // Simple tag hiding logic: don't stream if we're currently receiving an action tag
+              // Hide <think>...</think> or <thinking>...</thinking> reasoning blocks
+              if (buffer.includes("<think>") || buffer.includes("<thinking>")) {
+                isThinkingTag = true;
+              }
+              if (isThinkingTag) {
+                if (buffer.includes("</think>") || buffer.includes("</thinking>")) {
+                  buffer = buffer
+                    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+                    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+                  isThinkingTag = false;
+                } else {
+                  // Keep buffering thinking block without enqueuing
+                  continue;
+                }
+              }
+
+              // Hide action tags while receiving
               if (buffer.includes("[")) {
                  if (buffer.includes("]") && !buffer.includes("[BOOK_APPOINTMENT") && !buffer.includes("[FIND_HOSPITAL") && !buffer.includes("[/BOOK_APPOINTMENT") && !buffer.includes("[/FIND_HOSPITAL")) {
                     isActionTag = false;
@@ -246,6 +265,12 @@ export async function POST(req: Request) {
               }
             }
           }
+
+          // Clean fullReply of thinking tags before safety validation & saving
+          fullReply = fullReply
+            .replace(/<think>[\s\S]*?<\/think>/gi, "")
+            .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+            .trim();
 
           // ── PHASE 2C: POST-GENERATION MEDICAL SAFETY VALIDATION ───────────────
           const safetyResult = validateMedicalSafety(

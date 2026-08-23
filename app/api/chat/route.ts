@@ -7,6 +7,7 @@ import Chat from "@/models/chat";
 import User from "@/models/User";
 import { getAIContext } from "@/lib/aiContext";
 import { detectEmergency, buildDoctorSystemPrompt, parseSuggestedReplies } from "@/lib/healthAssistant";
+import { getGroqModel, getGroqClient } from "@/lib/groqConfig";
 import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital, handleChatAction, detectLanguageStyle } from "@/lib/chatActions";
 import { isMedicalQuery, retrieveKnowledge, resolveContextualQuery } from "@/lib/ragService";
 import { validateMedicalSafety } from "@/lib/safetyValidator";
@@ -19,17 +20,11 @@ import { metrics } from "@/lib/metrics";
 import { mongoFallbackMessage, groqFallbackMessage, ragFallbackMessage, safetyFallbackMessage } from "@/lib/degradedMode";
 
 
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY || "";
-  return new Groq({ apiKey });
-}
-
 export async function POST(req: Request) {
   try {
     const {
       message,
-      userId,
-      language: bodyLang,
+      language,
       history,
       reportContext,
       conversationId,
@@ -37,14 +32,8 @@ export async function POST(req: Request) {
     } = await req.json();
 
     if (!message || message.trim() === "") {
-      return NextResponse.json(
-        { message: "Message required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Message is required" }, { status: 400 });
     }
-
-    // Determine user's selected language from DB or request payload
-    let selectedLang = bodyLang || "en";
 
     let authenticatedUserId: string | null = null;
     const authHeader = req.headers.get("authorization");
@@ -61,7 +50,7 @@ export async function POST(req: Request) {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         authenticatedUserId = decoded.userId;
       } catch (err) {
-        // invalid token
+        // Invalid token - fall through as guest
       }
     }
 
@@ -71,6 +60,8 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    let selectedLang = language || "en";
 
     // ── EMERGENCY PRE-CHECK (IMMEDIATE BYPASS BEFORE DB / RAG / PHC / GROQ) ─
     const emergency = detectEmergency(message);
@@ -124,8 +115,8 @@ export async function POST(req: Request) {
           try {
             await Chat.create({
               userId: authenticatedUserId,
-              userMessage: message,
-              aiResponse: actionResult.reply,
+              message: message,
+              reply: actionResult.reply,
               conversationId: conversationId || undefined,
               title: title || undefined,
             });
@@ -238,7 +229,7 @@ export async function POST(req: Request) {
     // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
     const groq = getGroqClient();
     const stream = await (groq.chat.completions as any).create({
-      model: process.env.GROQ_MODEL || "qwen/qwen3.6-27b",
+      model: getGroqModel(),
       messages: messages as any,
       temperature: 0.5,
       max_tokens: 1000,
@@ -337,21 +328,26 @@ export async function POST(req: Request) {
              controller.enqueue(encoder.encode(actionResultText));
           }
 
-          const cleanedReply = stripActionTags(safeReplyText) + actionResultText;
+          const cleanedReply = (stripActionTags(safeReplyText) + actionResultText)
+            .replace(/<think>[\s\S]*?<\/think>/gi, "")
+            .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+            .trim();
 
           controller.close();
 
           // Save full reply to MongoDB after streaming completes
-          try {
-            await Chat.create({
-              userId: authenticatedUserId,
-              message: message,
-              reply: cleanedReply,
-              conversationId: conversationId || undefined,
-              title: title || undefined,
-            });
-          } catch (dbError) {
-            console.error("Mongo Save Error:", dbError);
+          if (authenticatedUserId && message && cleanedReply) {
+            try {
+              await Chat.create({
+                userId: authenticatedUserId,
+                message: message,
+                reply: cleanedReply,
+                conversationId: conversationId || undefined,
+                title: title || undefined,
+              });
+            } catch (dbError) {
+              console.error("Mongo Save Error:", dbError);
+            }
           }
         } catch (error) {
           console.error("Streaming error:", error);

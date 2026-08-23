@@ -6,10 +6,9 @@ import ReportHistory from "@/models/ReportHistory";
 import User from "@/models/User";
 import { extractImagesFromPDF } from "@/lib/pdfImageExtractor";
 import { getAuthUserId, getJwtSecret } from "@/lib/jwtHelper";
+import { getGroqModel, getGroqClient } from "@/lib/groqConfig";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const groq = getGroqClient();
 
 function parseObservedValue(valStr: string | null | undefined): number | null {
   if (valStr === null || valStr === undefined) return null;
@@ -256,7 +255,7 @@ JSON Schema:
     }));
 
     const visionCompletion = await groqInstance.chat.completions.create({
-      model: "qwen/qwen3.6-27b",
+      model: getGroqModel(),
       messages: [
         {
           role: "user",
@@ -432,12 +431,16 @@ export async function POST(request: Request) {
         console.error("Vision API Error:", visionErr);
         const err = visionErr as { message?: string; status?: number; error?: { error?: { code?: string; message?: string } } };
         let errorMessage = "Unable to extract readable medical information from this report. Please upload a clearer PDF/image.";
+        let statusCode = 400;
         if (err?.error?.error?.code === 'rate_limit_exceeded' || err?.status === 429) {
           errorMessage = "This medical report is too long and exceeds the AI processing token limits. Please upload a shorter report or fewer pages.";
+        } else if (err?.error?.error?.code === 'model_not_found' || err?.status === 404 || err?.status === 500 || err?.status === 503) {
+          errorMessage = "Report analysis service is currently experiencing technical difficulties. Please try again shortly.";
+          statusCode = 500;
         } else if (err?.message) {
           errorMessage = "Report analysis failed during image processing. " + (err.error?.error?.message || err.message);
         }
-        return NextResponse.json({ error: errorMessage }, { status: 400 });
+        return NextResponse.json({ error: errorMessage }, { status: statusCode });
       }
     } else if (reportText && reportText.trim().length >= 30) {
       try {
@@ -471,7 +474,7 @@ ${reportText}
 """
 `;
         const textExtraction = await groq.chat.completions.create({
-          model: "llama-3.1-8b-instant",
+          model: getGroqModel(),
           messages: [{ role: "user", content: textExtractionPrompt }],
           temperature: 0.1,
           max_tokens: 1500,
@@ -663,7 +666,7 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
       ];
 
       const analysisCompletion = await groq.chat.completions.create({
-        model: "llama-3.1-8b-instant",
+        model: getGroqModel(),
         messages: messages,
         temperature: 0.1,
         max_tokens: 2000,

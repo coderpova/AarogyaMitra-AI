@@ -5,8 +5,8 @@
 /* Base HTML & Body Root Layout Frame Settings */
 html {
   min-height: 100dvh;
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
 html.dark {

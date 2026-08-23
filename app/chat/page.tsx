@@ -1047,7 +1047,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full flex overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex overflow-hidden bg-slate-50 dark:bg-gray-950">
       {/* VOICE POPUP */}
       {voiceOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
@@ -1111,7 +1111,7 @@ export default function ChatPage() {
       )}
 
       {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden min-w-0 bg-gray-50 dark:bg-gray-950">
+      <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden min-w-0 bg-slate-50 dark:bg-gray-950">
         {/* OFFLINE BANNER */}
         {!isOnline && (
           <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0">
@@ -1138,8 +1138,8 @@ export default function ChatPage() {
         )}
 
         {/* HEADER */}
-        <div
-          className={`px-4 py-3 flex items-center justify-between shadow-sm shrink-0 border-b border-gray-100 dark:border-gray-855 text-white ${
+        <header
+          className={`px-4 py-3 flex items-center justify-between shadow-sm shrink-0 relative z-40 border-b border-blue-800/20 text-white ${
             isOnline
               ? "bg-gradient-to-r from-blue-700 via-blue-600 to-teal-600"
               : "bg-gradient-to-r from-gray-700 to-gray-600"
@@ -1196,7 +1196,7 @@ export default function ChatPage() {
               <Trash2 size={16} />
             </button>
           </div>
-        </div>
+        </header>
 
         {/* CHAT MESSAGES SCROLL WRAPPER */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-6">

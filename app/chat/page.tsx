@@ -39,6 +39,7 @@ import { useNotification } from "@/context/NotificationContext";
 import { getOfflineReply, createSession, ConversationSession } from "@/lib/offline/offlineChat";
 import { saveOfflineChat, getOfflineChats, deleteOfflineConversation, archiveOfflineConversation } from "@/lib/offlineStorage";
 import { checkAndSync } from "@/lib/syncManager";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import {
   parseSuggestedReplies,
   getIntegrationActions,
@@ -178,7 +179,7 @@ export default function ChatPage() {
   const [loadingArchived, setLoadingArchived] = useState(false);
 
   // ── Offline State ──────────────────────────────────────────────────────────
-  const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
+  const isOnline = useOnlineStatus();
   const [syncing, setSyncing] = useState(false);
   const [syncBanner, setSyncBanner] = useState<string | null>(null);
 
@@ -195,10 +196,9 @@ export default function ChatPage() {
     }
   }, [message]);
 
-  // ── Network Detection ──────────────────────────────────────────────────────
+  // ── Network Detection & Sync ───────────────────────────────────────────────
   useEffect(() => {
     const handleOnline = async () => {
-      setIsOnline(true);
       setSyncBanner(t("offline.syncSuccess"));
       setSyncing(true);
       try {
@@ -209,11 +209,6 @@ export default function ChatPage() {
       }
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      setSyncBanner(null);
-    };
-
     const handleSyncComplete = (e: Event) => {
       const result = (e as CustomEvent).detail;
       if (result?.synced > 0) {
@@ -222,12 +217,10 @@ export default function ChatPage() {
     };
 
     window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
     window.addEventListener("offline-sync-complete", handleSyncComplete);
 
     return () => {
       window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
       window.removeEventListener("offline-sync-complete", handleSyncComplete);
     };
   }, [user, t]);
@@ -697,11 +690,30 @@ export default function ChatPage() {
           }),
         });
 
+        if (res.status === 401) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[aiMessageIndex] = {
+              role: "ai",
+              text: "Your session has expired. Please log in again to continue.",
+              timestamp: now,
+              isStreaming: false,
+            };
+            return updated;
+          });
+          return;
+        }
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const errMsg = data.message || `Server error (${res.status}). Please try again shortly.`;
+          throw new Error(errMsg);
+        }
+
         const contentType = res.headers.get("content-type") || "";
 
         if (contentType.includes("application/json")) {
           const data = await res.json();
-          if (!res.ok) throw new Error(data.message);
 
           const { cleanText, suggestions } = parseSuggestedReplies(data.reply);
           setMessages((prev) => {
@@ -801,10 +813,23 @@ export default function ChatPage() {
         if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
       }
     } catch (error) {
-      console.log(error);
+      console.error("Chat error:", error);
       setMessages((prev) => prev.slice(0, -1));
 
-      if (isOnline) {
+      const isActuallyOnline = typeof navigator !== "undefined" ? navigator.onLine : isOnline;
+      const errMsg = error instanceof Error ? error.message : "Server is temporarily unavailable. Please try again.";
+
+      if (isActuallyOnline) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "ai",
+            text: errMsg,
+            timestamp: now,
+            isStreaming: false,
+          },
+        ]);
+      } else {
         try {
           const { reply, session: updatedSession } = await getOfflineReply(
             userText,
@@ -830,21 +855,18 @@ export default function ChatPage() {
             saveOfflineChat(user.email, userText, cleanText, targetConvoId, convoTitle);
           }
           if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
-          return;
         } catch {
-          // both failed
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "ai",
+              text: t("chat.emergencyWarning"),
+              timestamp: now,
+              isStreaming: false,
+            },
+          ]);
         }
       }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          text: t("chat.emergencyWarning"),
-          timestamp: now,
-          isStreaming: false,
-        },
-      ]);
     } finally {
       setLoading(false);
       setStreaming(false);

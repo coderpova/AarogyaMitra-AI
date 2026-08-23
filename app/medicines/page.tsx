@@ -1,5 +1,6 @@
 "use client";
 
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Pill, Clock, Trash2, Plus, WifiOff } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -34,7 +35,7 @@ export default function MedicinesPage() {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
+  const isOnline = useOnlineStatus();
 
   const isMedicineActive = (medicineTime: string) => {
     if (typeof window === "undefined") return false;
@@ -99,28 +100,19 @@ export default function MedicinesPage() {
     }
   }, [refreshSchedules]);
 
-  // ── Network Detection ──────────────────────────────────────────────────────
+  // ── Network Detection & Sync ───────────────────────────────────────────────
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      fetchMedicines(); // Re-fetch from server when back online
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, [fetchMedicines]);
+    if (isOnline) {
+      fetchMedicines();
+    }
+  }, [isOnline, fetchMedicines]);
 
   useEffect(() => {
     setTimeout(() => {
       fetchMedicines();
     }, 0);
   }, [fetchMedicines]);
+
 
   const addMedicine = async () => {
     if (!formData.name || !formData.dose || !formData.time) {

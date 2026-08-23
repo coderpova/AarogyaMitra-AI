@@ -181,6 +181,10 @@ export default function MedicinesPage() {
 
   useEffect(() => {
     fetchMedicines();
+    if (typeof window !== "undefined") {
+      window.addEventListener("aarogya_data_changed", fetchMedicines);
+      return () => window.removeEventListener("aarogya_data_changed", fetchMedicines);
+    }
   }, [fetchMedicines]);
 
   const resetForm = () => {

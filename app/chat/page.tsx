@@ -735,6 +735,9 @@ export default function ChatPage() {
             };
             return updated;
           });
+          if (typeof window !== "undefined" && (data.actionExecuted || data.uiCard)) {
+            window.dispatchEvent(new Event("aarogya_data_changed"));
+          }
           if (data.emergency) {
             addNotification(
               "emergency",
@@ -784,6 +787,9 @@ export default function ChatPage() {
             };
             return updated;
           });
+          if (typeof window !== "undefined" && (cleanText.includes("Booked") || cleanText.includes("Saved") || cleanText.includes("Logged") || cleanText.includes("Deleted"))) {
+            window.dispatchEvent(new Event("aarogya_data_changed"));
+          }
           if (typeof document !== "undefined" && (document.hidden || window.location.pathname !== "/chat")) {
             addNotification(
               "message",

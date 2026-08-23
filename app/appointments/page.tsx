@@ -73,6 +73,10 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments();
+    if (typeof window !== "undefined") {
+      window.addEventListener("aarogya_data_changed", fetchAppointments);
+      return () => window.removeEventListener("aarogya_data_changed", fetchAppointments);
+    }
   }, [fetchAppointments]);
 
   const handleBookAppointment = async () => {

@@ -137,6 +137,7 @@ export async function POST(req: Request) {
             reply: actionResult.reply,
             suggestions: parseSuggestedReplies(actionResult.reply),
             uiCard: actionResult.uiCard,
+            actionExecuted: actionResult.action,
           });
         }
       } catch (actErr) {
@@ -317,7 +318,8 @@ export async function POST(req: Request) {
           
           for (const action of actions) {
              if (action.actionType === "BOOK_APPOINTMENT") {
-                actionResultText += await executeBookAppointment(authenticatedUserId as string, action.params);
+                const res = await executeBookAppointment(authenticatedUserId as string, action.params);
+                actionResultText += res.message;
              } else if (action.actionType === "FIND_HOSPITAL") {
                 actionResultText += await executeFindHospital(action.params);
              }

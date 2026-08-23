@@ -3,9 +3,12 @@ import User from "../models/User";
 import Medicine from "../models/Medicine";
 import Appointment from "../models/Appointment";
 import ReportHistory from "../models/ReportHistory";
+import HealthEvent from "../models/HealthEvent";
 
 export interface ActionResult {
   handled: boolean;
+  success?: boolean;
+  action?: string;
   reply?: string;
   actionTag?: string;
   uiCard?: {
@@ -16,41 +19,97 @@ export interface ActionResult {
 
 export function parseActionTags(text: string) {
   const actions: Array<{ actionType: string; params: Record<string, string> }> = [];
-  const regex = /\[ACTION:([A-Z_]+)\s*({.*?})\]/g;
+
+  // Match [ACTION:TYPE {json}] or [TYPE] {json} [/TYPE]
+  const regex1 = /\[ACTION:([A-Z_]+)\s*({.*?})\]/g;
   let match;
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex1.exec(text)) !== null) {
     try {
-      const actionType = match[1];
-      const params = JSON.parse(match[2]);
-      actions.push({ actionType, params });
+      actions.push({ actionType: match[1], params: JSON.parse(match[2]) });
     } catch (e) {
       console.error("Action tag parse error:", e);
     }
   }
+
+  const regex2 = /\[([A-Z_]+)\]\s*({[\s\S]*?})\s*\[\/\1\]/g;
+  while ((match = regex2.exec(text)) !== null) {
+    try {
+      actions.push({ actionType: match[1], params: JSON.parse(match[2]) });
+    } catch (e) {
+      console.error("Action block parse error:", e);
+    }
+  }
+
   return actions;
 }
 
 export function stripActionTags(text: string): string {
-  return text.replace(/\[ACTION:[A-Z_]+\s*{.*?}\]/g, "").trim();
+  return text
+    .replace(/\[ACTION:[A-Z_]+\s*{.*?}\]/g, "")
+    .replace(/\[[A-Z_]+\][\s\S]*?\[\/[A-Z_]+\]/g, "")
+    .trim();
 }
 
-export async function executeBookAppointment(userId: string, params: Record<string, string>): Promise<string> {
-  if (!userId) return "";
+/**
+ * Executes appointment booking against real MongoDB database and verifies creation.
+ */
+export async function executeBookAppointment(
+  userId: string,
+  params: Record<string, string>
+): Promise<{ success: boolean; message: string; appointment?: any }> {
+  if (!userId) {
+    return { success: false, message: "❌ Authentication required to book appointments." };
+  }
   await connectDB();
   try {
-    await Appointment.create({
+    const user = await User.findById(userId);
+
+    const doctorName = params.doctorName || params.doctor || "General Physician";
+    const hospital = params.hospital || "City Healthcare Center";
+    
+    let dateStr = params.date || "";
+    if (!dateStr || dateStr === "tomorrow") {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dateStr = tomorrow.toISOString().split("T")[0];
+    } else if (dateStr === "today") {
+      dateStr = new Date().toISOString().split("T")[0];
+    }
+
+    const timeStr = params.time || "10:00 AM";
+    const patientName = user?.name || params.patientName || "Patient";
+
+    // Insert into Database
+    const appt = await Appointment.create({
       userId,
-      patientName: params.patientName || "Patient",
-      doctorName: params.doctorName || "General Physician",
-      hospital: params.hospital || "City Hospital",
-      date: params.date || new Date().toISOString().split("T")[0],
-      time: params.time || "10:00 AM",
+      patientName,
+      doctorName,
+      hospital,
+      date: dateStr,
+      time: timeStr,
       status: "Booked",
     });
-    return `\n\n✅ **Appointment Booked Successfully** for ${params.doctorName || "Doctor"} on ${params.date || "scheduled date"}.`;
+
+    // Verification check
+    const verified = await Appointment.findById(appt._id);
+    if (!verified) {
+      return {
+        success: false,
+        message: "❌ Your appointment could not be booked. Database verification failed.",
+      };
+    }
+
+    return {
+      success: true,
+      appointment: verified,
+      message: `\n\n✅ **Appointment Booked & Confirmed**\n- **Doctor:** ${verified.doctorName}\n- **Hospital:** ${verified.hospital}\n- **Date:** ${verified.date}\n- **Time:** ${verified.time}\n- **Appointment ID:** \`${verified._id}\`\n\nYour appointment is saved and synchronized with your Appointments page.`,
+    };
   } catch (err) {
     console.error("executeBookAppointment error:", err);
-    return "";
+    return {
+      success: false,
+      message: "❌ Your appointment could not be booked due to a server error.",
+    };
   }
 }
 
@@ -58,9 +117,6 @@ export async function executeFindHospital(params: Record<string, string>): Promi
   return `\n\n🏥 **Hospital Search Results** for ${params.location || "nearby location"}.`;
 }
 
-/**
- * Calculates BMI and category from height (cm) and weight (kg).
- */
 export function calculateBMIMetric(heightCm: number, weightKg: number) {
   if (heightCm <= 0 || weightKg <= 0) return null;
   const heightM = heightCm / 100;
@@ -78,9 +134,6 @@ export function calculateBMIMetric(heightCm: number, weightKg: number) {
   };
 }
 
-/**
- * Helper to extract height (cm) and weight (kg) from a text string.
- */
 function extractHeightWeight(text: string): { height?: number; weight?: number } {
   let height: number | undefined;
   let weight: number | undefined;
@@ -102,7 +155,7 @@ function extractHeightWeight(text: string): { height?: number; weight?: number }
 
 /**
  * Core Action Handler for Chat Requests.
- * Scoped strictly to authenticated userId.
+ * Real Database Writes, Verification, and User Isolation.
  */
 export async function handleChatAction(
   userId: string,
@@ -117,7 +170,6 @@ export async function handleChatAction(
   const query = userMessage.toLowerCase().trim();
   await connectDB();
 
-  // Load User Record for Profile & Data Isolation
   let user: any = userProfileData;
   if (!user && userId.match(/^[0-9a-fA-F]{24}$/)) {
     user = await User.findById(userId).select("-password");
@@ -134,6 +186,7 @@ export async function handleChatAction(
   ) {
     return {
       handled: true,
+      success: true,
       reply: `Understood. No changes were made to your health profile.`,
     };
   }
@@ -144,11 +197,13 @@ export async function handleChatAction(
     if (h) {
       return {
         handled: true,
+        success: true,
         reply: `Your registered height is **${h} cm** in your health profile.`,
       };
     } else {
       return {
         handled: true,
+        success: true,
         reply: `You haven't set your height in your profile yet. Tell me your height (e.g., "170 cm") to save it.`,
       };
     }
@@ -159,11 +214,13 @@ export async function handleChatAction(
     if (w) {
       return {
         handled: true,
+        success: true,
         reply: `Your registered weight is **${w} kg** in your health profile.`,
       };
     } else {
       return {
         handled: true,
+        success: true,
         reply: `You haven't set your weight in your profile yet. Tell me your weight (e.g., "68 kg") to save it.`,
       };
     }
@@ -176,7 +233,6 @@ export async function handleChatAction(
     );
 
   if (isExplicitSave) {
-    // Look for height/weight in userMessage or recent conversation turns (last 4 turns)
     const historyText = (history || [])
       .slice(-4)
       .map((m) => m.text || m.content || "")
@@ -189,90 +245,111 @@ export async function handleChatAction(
 
     if (targetHeight && targetWeight) {
       try {
-        user = user || (await User.findById(userId));
-        if (user) {
-          user.profile = user.profile || {};
-          user.profile.height = targetHeight;
-          user.profile.weight = targetWeight;
-          await user.save();
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          {
+            $set: {
+              "profile.height": targetHeight,
+              "profile.weight": targetWeight,
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          return {
+            handled: true,
+            success: false,
+            reply: `I couldn't save your height and weight right now. Database update failed.`,
+          };
         }
 
         const res = calculateBMIMetric(targetHeight, targetWeight);
         return {
           handled: true,
-          reply: `Saved. Your height (**${targetHeight} cm**) and weight (**${targetWeight} kg**) have been added to your health profile.\n\n📊 **Your BMI Calculation Result**\n\n- **Height:** ${targetHeight} cm\n- **Weight:** ${targetWeight} kg\n- **BMI Value:** **${res?.bmi} kg/m²**\n- **Category:** **${res?.category}**\n\n[SUGGESTED_REPLIES]Tell me my BMI|Show my health profile|Go to Dashboard[/SUGGESTED_REPLIES]`,
+          success: true,
+          action: "UPDATE_PROFILE",
+          reply: `Saved. Your height (**${targetHeight} cm**) and weight (**${targetWeight} kg**) have been saved to your health profile.\n\n📊 **Your BMI Calculation Result**\n\n- **Height:** ${targetHeight} cm\n- **Weight:** ${targetWeight} kg\n- **BMI Value:** **${res?.bmi} kg/m²**\n- **Category:** **${res?.category}**\n\n[SUGGESTED_REPLIES]Tell me my BMI|Show my health profile|Go to Dashboard[/SUGGESTED_REPLIES]`,
           uiCard: res ? { type: "bmi", data: res } : undefined,
         };
       } catch (err) {
         console.error("Health profile save error:", err);
         return {
           handled: true,
+          success: false,
           reply: `I couldn't save your height and weight right now. Nothing was changed.`,
         };
       }
     } else if (targetHeight && !targetWeight) {
       try {
-        user = user || (await User.findById(userId));
-        if (user) {
-          user.profile = user.profile || {};
-          user.profile.height = targetHeight;
-          await user.save();
-        }
+        await User.findByIdAndUpdate(userId, { $set: { "profile.height": targetHeight } });
         return {
           handled: true,
+          success: true,
+          action: "UPDATE_PROFILE",
           reply: `Saved. Your height (**${targetHeight} cm**) has been updated in your profile. What is your weight in kg?`,
         };
       } catch (err) {
         return {
           handled: true,
+          success: false,
           reply: `I couldn't save your height right now. Nothing was changed.`,
         };
       }
     } else if (!targetHeight && targetWeight) {
       try {
-        user = user || (await User.findById(userId));
-        if (user) {
-          user.profile = user.profile || {};
-          user.profile.weight = targetWeight;
-          await user.save();
-        }
+        await User.findByIdAndUpdate(userId, { $set: { "profile.weight": targetWeight } });
         return {
           handled: true,
+          success: true,
+          action: "UPDATE_PROFILE",
           reply: `Saved. Your weight (**${targetWeight} kg**) has been updated in your profile. What is your height in cm?`,
         };
       } catch (err) {
         return {
           handled: true,
+          success: false,
           reply: `I couldn't save your weight right now. Nothing was changed.`,
         };
       }
     } else {
       return {
         handled: true,
+        success: true,
         reply: `What height (in cm) and weight (in kg) would you like me to save to your health profile?`,
       };
     }
   }
 
-  // 4. DIRECT UPDATE INTENT ("change my weight to 70 kg", "update my height to 175 cm", "my weight is 70 kg")
+  // 4. DIRECT PROFILE UPDATE INTENT ("save my height as 170 cm", "my weight is 68 kg")
   const isDirectUpdate =
-    /\b(change|update|set|my weight is|my height is)\b/i.test(query) &&
+    /\b(change|update|set|my weight is|my height is|save my height as|save my weight as)\b/i.test(query) &&
     /(\d{2,3}\s*cm|\d{2,3}\s*kg)/i.test(query);
 
   if (isDirectUpdate) {
     const extracted = extractHeightWeight(query);
     if (extracted.height || extracted.weight) {
       try {
-        user = user || (await User.findById(userId));
-        if (user) {
-          user.profile = user.profile || {};
-          if (extracted.height) user.profile.height = extracted.height;
-          if (extracted.weight) user.profile.weight = extracted.weight;
-          await user.save();
+        const updateFields: any = {};
+        if (extracted.height) updateFields["profile.height"] = extracted.height;
+        if (extracted.weight) updateFields["profile.weight"] = extracted.weight;
+
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $set: updateFields },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          return {
+            handled: true,
+            success: false,
+            reply: `Could not update profile. User record not found.`,
+          };
         }
 
-        const h = user?.profile?.height;
-        const w = user?.profile?.weight;
+        const h = updatedUser.profile?.height;
+        const w = updatedUser.profile?.weight;
         const res = h && w ? calculateBMIMetric(h, w) : null;
 
         let msg = "Saved.";
@@ -286,6 +363,8 @@ export async function handleChatAction(
 
         return {
           handled: true,
+          success: true,
+          action: "UPDATE_PROFILE",
           reply: `${msg}\n\n[SUGGESTED_REPLIES]Tell me my BMI|Show my health profile|Go to Dashboard[/SUGGESTED_REPLIES]`,
           uiCard: res ? { type: "bmi", data: res } : undefined,
         };
@@ -293,6 +372,7 @@ export async function handleChatAction(
         console.error("Health profile update error:", err);
         return {
           handled: true,
+          success: false,
           reply: `I couldn't update your health profile right now. Nothing was changed.`,
         };
       }
@@ -314,6 +394,7 @@ export async function handleChatAction(
       if (res) {
         return {
           handled: true,
+          success: true,
           reply: `📊 **Your BMI Calculation Result**\n\n- **Height:** ${res.heightCm} cm\n- **Weight:** ${res.weightKg} kg\n- **BMI Value:** **${res.bmi} kg/m²**\n- **Category:** **${res.category}**\n\n*Reference Ranges:* Underweight (<18.5), Normal (18.5–24.9), Overweight (25–29.9), Obese (≥30).\n\n[SUGGESTED_REPLIES]How to maintain normal BMI|Diet tips for my BMI|Check health profile[/SUGGESTED_REPLIES]`,
           uiCard: {
             type: "bmi",
@@ -324,55 +405,247 @@ export async function handleChatAction(
     } else if (height && (!weight || weight <= 0)) {
       return {
         handled: true,
+        success: true,
         reply: `I have your registered height (**${height} cm**). What is your current **weight in kg** so I can calculate your BMI?\n\n[SUGGESTED_REPLIES]65 kg|70 kg|75 kg[/SUGGESTED_REPLIES]`,
       };
     } else if (weight && (!height || height <= 0)) {
       return {
         handled: true,
+        success: true,
         reply: `I have your registered weight (**${weight} kg**). What is your **height in cm** so I can calculate your BMI?\n\n[SUGGESTED_REPLIES]165 cm|170 cm|175 cm[/SUGGESTED_REPLIES]`,
       };
     } else {
       return {
         handled: true,
+        success: true,
         reply: `To calculate your BMI, please tell me your **height (in cm)** and **weight (in kg)**.\n\n*(Example: "I am 170 cm tall and weigh 68 kg")*\n\n[SUGGESTED_REPLIES]170 cm and 65 kg|165 cm and 60 kg|175 cm and 75 kg[/SUGGESTED_REPLIES]`,
       };
     }
   }
 
-  // Explicit Height/Weight Input in Query (e.g. "I am 170 cm and 65 kg")
-  const extractedQueryHW = extractHeightWeight(query);
-  if (extractedQueryHW.height && extractedQueryHW.weight) {
-    const h = extractedQueryHW.height;
-    const w = extractedQueryHW.weight;
-    const res = calculateBMIMetric(h, w);
-
-    if (res) {
-      try {
-        user = user || (await User.findById(userId));
-        if (user) {
-          user.profile = user.profile || {};
-          user.profile.height = h;
-          user.profile.weight = w;
-          await user.save();
-        }
-      } catch (saveErr) {
-        console.error("Auto profile save error:", saveErr);
+  // 6. HYDRATION & WATER LOGGING
+  const isHydrationLog = /\b(drank|drank water|drank \d+|logged water|water intake)\b/i.test(query) && /\b(\d+\.?\d*)\s*(litres|litre|liter|liters|l|ml)\b/i.test(query);
+  if (isHydrationLog) {
+    const match = query.match(/(\d+\.?\d*)\s*(litres|litre|liter|liters|l|ml)/i);
+    if (match) {
+      let val = parseFloat(match[1]);
+      const unit = match[2].toLowerCase();
+      if (unit === "ml") {
+        val = val / 1000; // convert to L
       }
+
+      try {
+        const event = await HealthEvent.create({
+          userId,
+          type: "vital_log",
+          symptom: "Hydration",
+          value: `${val.toFixed(1)} L`,
+          source: "USER_REPORTED",
+          isDeleted: false,
+        });
+
+        const verified = await HealthEvent.findById(event._id);
+        if (!verified) {
+          return {
+            handled: true,
+            success: false,
+            reply: `❌ Could not log water intake. Database verification failed.`,
+          };
+        }
+
+        return {
+          handled: true,
+          success: true,
+          action: "LOG_WATER",
+          reply: `✅ **Logged ${val.toFixed(1)} L of water for today.**\n\nKeep staying hydrated! Your daily health log has been updated.\n\n[SUGGESTED_REPLIES]How much water did I drink today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Hydration log error:", err);
+        return {
+          handled: true,
+          success: false,
+          reply: `❌ Failed to log water intake due to server error.`,
+        };
+      }
+    }
+  }
+
+  // HYDRATION QUERY ("How much water did I drink today?")
+  if (query.includes("how much water did i drink") || query.includes("water intake today") || query.includes("water drank today")) {
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const logs = await HealthEvent.find({
+        userId,
+        type: "vital_log",
+        symptom: "Hydration",
+        isDeleted: false,
+        createdAt: { $gte: todayStart },
+      });
+
+      let totalLitres = 0;
+      logs.forEach((log) => {
+        const num = parseFloat(log.value || "0");
+        if (!isNaN(num)) totalLitres += num;
+      });
 
       return {
         handled: true,
-        reply: `Saved. Your height (**${h} cm**) and weight (**${w} kg**) have been added to your health profile.\n\n📊 **Your BMI Calculation Result**\n\n- **Height:** ${res.heightCm} cm\n- **Weight:** ${res.weightKg} kg\n- **BMI Value:** **${res.bmi} kg/m²**\n- **Category:** **${res.category}**\n\n[SUGGESTED_REPLIES]Tell me my BMI|Save to profile|Check health profile[/SUGGESTED_REPLIES]`,
-        uiCard: { type: "bmi", data: res },
+        success: true,
+        reply: totalLitres > 0
+          ? `💧 You have logged **${totalLitres.toFixed(1)} L** of water today.`
+          : `💧 You haven't logged any water intake today. Tell me e.g. "I drank 2 litres of water today" to record it.`,
+      };
+    } catch (err) {
+      console.error("Hydration query error:", err);
+    }
+  }
+
+  // 7. HEALTH TIMELINE LOGGING (Activity, Sleep, Symptoms)
+  const isActivityLog = /\b(walked|ran|exercised|slept)\b/i.test(query) && /\b(\d+\.?\d*)\s*(km|miles|hours|hrs|minutes|mins)\b/i.test(query);
+  if (isActivityLog) {
+    const match = query.match(/(walked|ran|exercised|slept)\s*(\d+\.?\d*)\s*(km|miles|hours|hrs|minutes|mins)/i);
+    if (match) {
+      const activity = match[1];
+      const num = match[2];
+      const unit = match[3];
+
+      try {
+        const event = await HealthEvent.create({
+          userId,
+          type: "vital_log",
+          symptom: activity.charAt(0).toUpperCase() + activity.slice(1),
+          value: `${num} ${unit}`,
+          source: "USER_REPORTED",
+          isDeleted: false,
+        });
+
+        const verified = await HealthEvent.findById(event._id);
+        if (!verified) {
+          return {
+            handled: true,
+            success: false,
+            reply: `❌ Could not log activity. Database verification failed.`,
+          };
+        }
+
+        return {
+          handled: true,
+          success: true,
+          action: "LOG_ACTIVITY",
+          reply: `✅ **Logged ${activity}: ${num} ${unit} for today.**\n\nYour activity record has been saved to your health timeline.`,
+        };
+      } catch (err) {
+        console.error("Activity log error:", err);
+      }
+    }
+  }
+
+  const isSymptomLog = /\b(had a|feeling|felt|suffering from)\b/i.test(query) && /\b(headache|fever|dizzy|nausea|chest pain|stomach pain|cough|cold)\b/i.test(query);
+  if (isSymptomLog) {
+    const match = query.match(/(headache|fever|dizzy|nausea|chest pain|stomach pain|cough|cold)/i);
+    if (match) {
+      const symptomName = match[1];
+      try {
+        const event = await HealthEvent.create({
+          userId,
+          type: "symptom",
+          symptom: symptomName,
+          severity: "moderate",
+          source: "USER_REPORTED",
+          isDeleted: false,
+        });
+
+        const verified = await HealthEvent.findById(event._id);
+        if (!verified) {
+          return {
+            handled: true,
+            success: false,
+            reply: `❌ Could not log symptom. Database verification failed.`,
+          };
+        }
+
+        return {
+          handled: true,
+          success: true,
+          action: "LOG_SYMPTOM",
+          reply: `✅ **Logged symptom: ${symptomName}** in your health timeline.\n\nIf symptoms persist or worsen, please consult a medical doctor.`,
+        };
+      } catch (err) {
+        console.error("Symptom log error:", err);
+      }
+    }
+  }
+
+  // 8. APPOINTMENT BOOKING INTENT (Natural Language & Form)
+  const isBookAppt = /\b(book an appointment|book appointment|doctor appointment|appointment book|schedule appointment|book physician)\b/i.test(query);
+  if (isBookAppt) {
+    const isConfirmed = query.includes("yes") || query.includes("confirm");
+
+    let doctorName = "General Physician";
+    if (query.includes("cardiology") || query.includes("cardiologist")) doctorName = "Cardiologist";
+    else if (query.includes("dermatology") || query.includes("dermatologist")) doctorName = "Dermatologist";
+    else if (query.includes("orthopedic") || query.includes("orthopedist")) doctorName = "Orthopedic Specialist";
+    else if (query.includes("pediatrician") || query.includes("child doctor")) doctorName = "Pediatrician";
+    else if (query.includes("sharma")) doctorName = "Dr. Sharma";
+    else if (query.includes("verma")) doctorName = "Dr. Verma";
+
+    let dateStr = "";
+    if (query.includes("tomorrow")) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dateStr = tomorrow.toISOString().split("T")[0];
+    } else {
+      const dateMatch = query.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+      dateStr = dateMatch ? dateMatch[1] : new Date().toISOString().split("T")[0];
+    }
+
+    let timeStr = "10:00 AM";
+    const timeMatch = query.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i) || query.match(/(\d{1,2})\s*(am|pm)/i);
+    if (timeMatch) {
+      timeStr = timeMatch[0].toUpperCase();
+    }
+
+    if (!isConfirmed && !query.includes("confirm booking")) {
+      return {
+        handled: true,
+        success: true,
+        action: "CONFIRM_APPOINTMENT_REQUIRED",
+        reply: `📅 You are booking an appointment with **${doctorName}** at **City Healthcare Center** for **${dateStr}** at **${timeStr}**.\n\nPlease confirm if you want me to save this appointment to your schedule.\n\n[SUGGESTED_REPLIES]Yes, confirm booking|No, cancel[/SUGGESTED_REPLIES]`,
+      };
+    }
+
+    const res = await executeBookAppointment(userId, {
+      doctorName,
+      hospital: "City Healthcare Center",
+      date: dateStr,
+      time: timeStr,
+    });
+
+    if (res.success) {
+      return {
+        handled: true,
+        success: true,
+        action: "BOOK_APPOINTMENT",
+        reply: res.message,
+        uiCard: {
+          type: "appointment",
+          data: [res.appointment],
+        },
+      };
+    } else {
+      return {
+        handled: true,
+        success: false,
+        reply: res.message,
       };
     }
   }
 
-  // 5.5. CREATE / SET MEDICINE REMINDER INTENT
-  const isSetReminder = /\b(set a reminder|remind me|add a reminder|add medicine reminder)\b/i.test(query);
+  // 9. CREATE / SET MEDICINE REMINDER INTENT
+  const isSetReminder = /\b(set a reminder|remind me|add a reminder|add medicine reminder|set my paracetamol)\b/i.test(query);
   if (isSetReminder) {
-    const isConfirmed = query.includes("yes") || query.includes("confirm");
-    
-    // Time extraction (e.g., "8 PM", "08:00 AM", "20:00")
     let time24 = "08:00";
     const timeMatch = query.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
     if (timeMatch) {
@@ -386,11 +659,9 @@ export async function handleChatAction(
       }
     }
 
-    // Name & Dose extraction
-    const medMatch = query.match(/(?:for|take)\s+([a-zA-Z0-9\s]+?)(?:\s+at|\s+tomorrow|\s+daily|\s*$)/i);
+    const medMatch = query.match(/(?:for|take|my)\s+([a-zA-Z0-9\s]+?)(?:\s+at|\s+reminder|\s+tomorrow|\s+daily|\s*$)/i);
     const medName = medMatch ? medMatch[1].trim() : "Medicine";
 
-    // Duplicate Check
     const existingDuplicate = await Medicine.findOne({
       userId,
       isDeleted: { $ne: true },
@@ -401,43 +672,55 @@ export async function handleChatAction(
     if (existingDuplicate) {
       return {
         handled: true,
+        success: true,
         reply: `An identical reminder for **${existingDuplicate.name}** at **${existingDuplicate.time}** already exists.\n\n[SUGGESTED_REPLIES]Show my medicines|Go to Medicines Page[/SUGGESTED_REPLIES]`,
       };
     }
 
-    if (isConfirmed || query.includes("set a reminder")) {
-      await Medicine.create({
-        userId,
-        name: medName,
-        dose: "1 dose",
-        time: time24,
-        date: new Date().toISOString().split("T")[0],
-        frequency: "Daily",
-        reminder: true,
-        taken: false,
-      });
+    const newMed = await Medicine.create({
+      userId,
+      name: medName,
+      dose: "1 dose",
+      time: time24,
+      date: new Date().toISOString().split("T")[0],
+      frequency: "Daily",
+      reminder: true,
+      taken: false,
+    });
 
+    const verified = await Medicine.findById(newMed._id);
+    if (!verified) {
       return {
         handled: true,
-        reply: `✅ Set a daily medicine reminder for **${medName}** at **${time24}**.\n\n[SUGGESTED_REPLIES]Show my medicines|Add another reminder|Go to Medicines Page[/SUGGESTED_REPLIES]`,
+        success: false,
+        reply: `❌ Failed to create medicine reminder. Database write error.`,
       };
     }
+
+    return {
+      handled: true,
+      success: true,
+      action: "CREATE_MEDICINE",
+      reply: `✅ Set a daily medicine reminder for **${medName}** at **${time24}**.\n\n[SUGGESTED_REPLIES]Show my medicines|Add another reminder|Go to Medicines Page[/SUGGESTED_REPLIES]`,
+      uiCard: { type: "medicine", data: [verified] },
+    };
   }
 
-  // 6. LIST MEDICINES / REMINDERS INTENT
+  // 10. LIST MEDICINES / REMINDERS INTENT
   if (
     query.includes("show my medicines") ||
     query.includes("show my medicine reminders") ||
     query.includes("what medicines am i taking") ||
     query.includes("my medicines list") ||
-    query.includes("dawa dekho") ||
-    query.includes("meri dawaiyan")
+    query.includes("show my reminders") ||
+    query.includes("dawa dekho")
   ) {
-    const medicines = await Medicine.find({ userId }).sort({ createdAt: -1 });
+    const medicines = await Medicine.find({ userId, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     if (!medicines || medicines.length === 0) {
       return {
         handled: true,
+        success: true,
         reply: `You currently have no registered medicines or active reminders.\n\nWould you like to add a new medicine reminder?\n\n[SUGGESTED_REPLIES]Add Paracetamol 500mg at 8 AM|Add Metformin 500mg at 9 PM|Go to Medicines Page[/SUGGESTED_REPLIES]`,
       };
     }
@@ -451,6 +734,7 @@ export async function handleChatAction(
 
     return {
       handled: true,
+      success: true,
       reply: `💊 **Your Active Medicines & Reminders**\n\n${lines.join(
         "\n"
       )}\n\n[SUGGESTED_REPLIES]Add new medicine|Delete a reminder|Go to Medicines Page[/SUGGESTED_REPLIES]`,
@@ -461,39 +745,51 @@ export async function handleChatAction(
     };
   }
 
-  // 7. DELETE MEDICINE REMINDER INTENT
+  // 11. DELETE MEDICINE REMINDER INTENT
   if (query.includes("delete") && (query.includes("medicine") || query.includes("reminder") || query.includes("dawa"))) {
-    const medicines = await Medicine.find({ userId });
+    const medicines = await Medicine.find({ userId, isDeleted: { $ne: true } });
     if (!medicines || medicines.length === 0) {
       return {
         handled: true,
+        success: true,
         reply: `You have no active medicine reminders to delete.`,
       };
     }
 
     const isConfirmed = query.includes("yes") || query.includes("confirm");
     let target = medicines.find((m) => query.includes(m.name.toLowerCase()));
-    if (!target && medicines.length === 1) {
+    if (!target && (medicines.length === 1 || query.includes("reminder"))) {
       target = medicines[0];
     }
 
     if (target) {
       if (isConfirmed) {
         await Medicine.findByIdAndDelete(target._id);
+        const verifiedDelete = await Medicine.findById(target._id);
+        if (verifiedDelete) {
+          return {
+            handled: true,
+            success: false,
+            reply: `❌ Failed to delete reminder. Database write error.`,
+          };
+        }
         return {
           handled: true,
+          success: true,
+          action: "DELETE_MEDICINE",
           reply: `✅ Deleted reminder for **${target.name}** (${target.dose}) at ${target.time}.\n\n[SUGGESTED_REPLIES]Show my medicines|Add new medicine|Go to Dashboard[/SUGGESTED_REPLIES]`,
         };
       } else {
         return {
           handled: true,
+          success: true,
           reply: `⚠️ Are you sure you want to delete your reminder for **${target.name}** (${target.dose}) set for **${target.time}**?\n\n[SUGGESTED_REPLIES]Yes, delete this reminder|No, cancel[/SUGGESTED_REPLIES]`,
         };
       }
     }
   }
 
-  // 8. LIST APPOINTMENTS INTENT
+  // 12. LIST APPOINTMENTS INTENT
   if (
     query.includes("show my appointments") ||
     query.includes("my appointments") ||
@@ -505,6 +801,7 @@ export async function handleChatAction(
     if (!appointments || appointments.length === 0) {
       return {
         handled: true,
+        success: true,
         reply: `You currently have no booked appointments.\n\nWould you like to book an appointment with a doctor?\n\n[SUGGESTED_REPLIES]Book Dr. Sharma for Monday 4 PM|Book General Physician|Find nearby hospitals[/SUGGESTED_REPLIES]`,
       };
     }
@@ -518,6 +815,7 @@ export async function handleChatAction(
 
     return {
       handled: true,
+      success: true,
       reply: `📅 **Your Booked Appointments**\n\n${lines.join(
         "\n"
       )}\n\n[SUGGESTED_REPLIES]Book new appointment|Find nearby hospitals|Go to Appointments Page[/SUGGESTED_REPLIES]`,
@@ -528,19 +826,21 @@ export async function handleChatAction(
     };
   }
 
-  // 9. REPORT SUMMARY INTENT
+  // 13. REPORT SUMMARY INTENT
   if (
     query.includes("latest report") ||
     query.includes("recent report") ||
     query.includes("hb level") ||
     query.includes("hemoglobin") ||
-    query.includes("my blood report")
+    query.includes("my blood report") ||
+    query.includes("what was my hb")
   ) {
     const report = await ReportHistory.findOne({ userId }).sort({ createdAt: -1 });
 
     if (!report) {
       return {
         handled: true,
+        success: true,
         reply: `No medical reports found in your record. Upload a lab report using the Report Analyzer page to get AI insights.\n\n[SUGGESTED_REPLIES]Go to Report Analyzer|Check health profile|Ask health question[/SUGGESTED_REPLIES]`,
       };
     }
@@ -559,6 +859,7 @@ export async function handleChatAction(
 
     return {
       handled: true,
+      success: true,
       reply: `${summaryText}\n\n[SUGGESTED_REPLIES]Go to Report Analyzer|Book specialist appointment|Ask about hemoglobin[/SUGGESTED_REPLIES]`,
       uiCard: {
         type: "report",

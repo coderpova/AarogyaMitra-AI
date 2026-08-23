@@ -19,9 +19,10 @@ import { metrics } from "@/lib/metrics";
 import { mongoFallbackMessage, groqFallbackMessage, ragFallbackMessage, safetyFallbackMessage } from "@/lib/degradedMode";
 
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY || "";
+  return new Groq({ apiKey });
+}
 
 export async function POST(req: Request) {
   try {
@@ -45,9 +46,7 @@ export async function POST(req: Request) {
     // Determine user's selected language from DB or request payload
     let selectedLang = bodyLang || "en";
 
-    await connectDB();
-
-    let authenticatedUserId = null;
+    let authenticatedUserId: string | null = null;
     const authHeader = req.headers.get("authorization");
     let token = authHeader ? authHeader.split(" ")[1] : null;
 
@@ -73,16 +72,7 @@ export async function POST(req: Request) {
       );
     }
 
-    try {
-      const dbUser = await User.findById(authenticatedUserId);
-      if (dbUser?.settings?.language) {
-        selectedLang = dbUser.settings.language;
-      }
-    } catch (userErr) {
-      console.error("User language lookup fallback:", userErr);
-    }
-
-    // ── EMERGENCY PRE-CHECK ───────────────────────────────────────────────────
+    // ── EMERGENCY PRE-CHECK (IMMEDIATE BYPASS BEFORE DB / RAG / PHC / GROQ) ─
     const emergency = detectEmergency(message);
     if (emergency.isEmergency) {
       const emergencyReply =
@@ -90,8 +80,9 @@ export async function POST(req: Request) {
           ? emergency.responseHi || emergency.responseEn || ""
           : emergency.responseEn || "";
 
-      // Save emergency interaction to DB
+      // Asynchronously attempt saving emergency interaction to DB (non-blocking for response)
       try {
+        await connectDB();
         await Chat.create({
           userId: authenticatedUserId,
           message: message,
@@ -100,7 +91,7 @@ export async function POST(req: Request) {
           title: title || undefined,
         });
       } catch (dbError) {
-        console.error("Mongo Save Error:", dbError);
+        console.error("[Emergency] Mongo Save Error:", dbError);
       }
 
       return NextResponse.json({
@@ -108,9 +99,20 @@ export async function POST(req: Request) {
         emergency: true,
         suggestions:
           selectedLang === "hi"
-            ? ["अस्पताल खोजें|112 पर कॉल करें|प्राथमिक उपचार".split("|")[0], "112 पर कॉल करें", "प्राथमिक उपचार"]
+            ? ["अस्पताल खोजें", "112 पर कॉल करें", "प्राथमिक उपचार"]
             : ["Find Hospital", "Call 112", "First Aid"],
       });
+    }
+
+    await connectDB();
+
+    try {
+      const dbUser = await User.findById(authenticatedUserId);
+      if (dbUser?.settings?.language) {
+        selectedLang = dbUser.settings.language;
+      }
+    } catch (userErr) {
+      console.error("User language lookup fallback:", userErr);
     }
 
     // ── AI PERSONAL HEALTH CONTEXT (PHASE 3.5) ──────────────────────────────
@@ -196,8 +198,9 @@ export async function POST(req: Request) {
     messages.push({ role: "user", content: message });
 
     // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
+    const groq = getGroqClient();
     const stream = await groq.chat.completions.create({
-      model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
       messages: messages as any,
       temperature: 0.5,
       max_tokens: 1000,

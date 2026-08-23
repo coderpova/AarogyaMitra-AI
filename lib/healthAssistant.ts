@@ -228,23 +228,35 @@ National Emergency: 112 | Ambulance: 108 | Janani Shishu Suraksha: 104`,
   },
   {
     patterns: [
-      "suicidal", "kill myself", "end my life",
-      "apni jaan lena", "mar jaunga",
+      "medical emergency", "emergency hai", "emergency help", "in an emergency",
+      "emergency kya hai", "emergency mein kya kare", "emergency situation",
+      "emergency", "urgency", "urgent help",
+      "आपातकाल", "एमरजेंसी", "इमरजेंसी", "आपात स्थिति",
     ],
-    en: `🚨 I'm concerned about you. Your life matters.
+    en: `🚨 MEDICAL EMERGENCY ASSISTANCE
 
-Please call iCALL (Free mental health helpline): 9152987821
-Or Vandrevala Foundation: 1860-2333-350
+Call 112 or 108 immediately for urgent medical help!
 
-You are not alone. Help is available right now.
-A mental health professional can support you through this.`,
-    hi: `🚨 मुझे आपकी चिंता है। आपकी ज़िंदगी मायने रखती है।
+Key Steps in any Medical Emergency:
+✅ Stay calm and ensure the scene is safe
+✅ Call National Emergency (112) or Ambulance (108)
+✅ Keep the patient still and comfortable
+✅ Do NOT give food or water if unconscious or severely injured
+✅ Follow dispatcher instructions until medical professionals arrive
 
-कृपया iCALL (मुफ्त मानसिक स्वास्थ्य हेल्पलाइन): 9152987821
-या वंदरेवाला फाउंडेशन: 1860-2333-350
+National Emergency: 112 | Ambulance: 108 | Medical Helpline: 104`,
+    hi: `🚨 चिकित्सा आपातकालीन सहायता
 
-आप अकेले नहीं हैं। अभी मदद उपलब्ध है।
-एक मानसिक स्वास्थ्य पेशेवर आपको इस परिस्थिति में सहारा दे सकता है।`,
+आपातकालीन चिकित्सा सहायता के लिए तुरंत 112 या 108 पर कॉल करें!
+
+किसी भी आपात स्थिति में मुख्य कदम:
+✅ शांत रहें और आसपास की सुरक्षा जांचें
+✅ राष्ट्रीय आपातकाल (112) या एम्बुलेंस (108) पर कॉल करें
+✅ मरीज को शांत और आरामदायक स्थिति में रखें
+✅ बेहोश या गंभीर घायल व्यक्ति को खाना या पानी न दें
+✅ मेडिकल टीम आने तक निर्देशों का पालन करें
+
+राष्ट्रीय आपातकाल: 112 | एम्बुलेंस: 108 | मेडिकल हेल्पलाइन: 104`,
   },
 ];
 

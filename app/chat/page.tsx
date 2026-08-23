@@ -48,6 +48,7 @@ import {
 } from "@/lib/healthAssistant";
 
 interface Message {
+  id?: string;
   role: "user" | "ai";
   text: string;
   timestamp?: string;
@@ -167,6 +168,11 @@ export default function ChatPage() {
     { icon: Syringe, label: t("chatExt.actVac"), prompt: t("chatExt.promptVac") },
   ];
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
@@ -278,7 +284,7 @@ export default function ChatPage() {
   };
 
   // ── Load Conversation History ──────────────────────────────────────────────
-  const loadHistory = async (convoIdToActivate?: string) => {
+  const loadHistory = async (convoIdToActivate?: string, isBackgroundSync: boolean = false) => {
     if (!user?.email) return;
 
     let loadedChats: DBChat[] = [];
@@ -323,6 +329,11 @@ export default function ChatPage() {
       const grouped = groupChats(loadedChats);
       setConversations(grouped);
 
+      if (isBackgroundSync) {
+        // Background sync after send: update sidebar list, but DO NOT overwrite active message stream!
+        return;
+      }
+
       const targetId = convoIdToActivate || activeConversationId;
       if (targetId) {
         const targetConvo = grouped.find((c) => c.id === targetId);
@@ -330,25 +341,32 @@ export default function ChatPage() {
           setActiveConversationId(targetConvo.id);
           setMessages([
             {
+              id: "msg_greeting",
               role: "ai",
               text: t("chat.greeting"),
-              timestamp: targetConvo.messages[0]?.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              timestamp: targetConvo.messages[0]?.timestamp || "",
             },
-            ...targetConvo.messages,
+            ...targetConvo.messages.map((m, idx) => ({
+              ...m,
+              id: m.id || `hist_${idx}_${Date.now()}`,
+            })),
           ]);
         }
       } else {
         setActiveConversationId(null);
         setMessages([
           {
+            id: "msg_greeting",
             role: "ai",
             text: t("chat.greeting"),
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: "",
           },
         ]);
       }
     } else {
-      startNewChat();
+      if (!isBackgroundSync) {
+        startNewChat();
+      }
     }
   };
 
@@ -636,34 +654,35 @@ export default function ChatPage() {
     }
   };
 
-// SEND MESSAGE — streaming support
+  // SEND MESSAGE — streaming support
   async function sendMessage(textOverride?: string, reportCtx?: string, suppressHistory: boolean = false) {
     const userText = textOverride || message;
     if (!userText.trim() || loading) return;
 
-    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const userMsgId = `msg_user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const aiMsgId = `msg_ai_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = isMounted ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 
-    // Append user message
-    const updatedMessages = [
-      ...messages,
-      { role: "user" as const, text: userText, timestamp: now },
-    ];
-    setMessages(updatedMessages);
+    const userMsgObj: Message = {
+      id: userMsgId,
+      role: "user",
+      text: userText,
+      timestamp: now,
+    };
+
+    const aiMsgObj: Message = {
+      id: aiMsgId,
+      role: "ai",
+      text: "",
+      timestamp: now,
+      isStreaming: true,
+    };
+
+    // Immediately append user message and AI response placeholder to state
+    setMessages((prev) => [...prev, userMsgObj, aiMsgObj]);
     setMessage("");
     setLoading(true);
     setStreaming(true);
-
-    // Add streaming AI message placeholder
-    const aiMessageIndex = updatedMessages.length;
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "ai",
-        text: "",
-        timestamp: now,
-        isStreaming: true,
-      },
-    ]);
 
     let targetConvoId = activeConversationId;
     let convoTitle = "";
@@ -696,16 +715,18 @@ export default function ChatPage() {
         });
 
         if (res.status === 401) {
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[aiMessageIndex] = {
-              role: "ai",
-              text: "Your session has expired. Please log in again to continue.",
-              timestamp: now,
-              isStreaming: false,
-            };
-            return updated;
-          });
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMsgId
+                ? {
+                    ...msg,
+                    text: "Your session has expired. Please log in again to continue.",
+                    timestamp: now,
+                    isStreaming: false,
+                  }
+                : msg
+            )
+          );
           return;
         }
 
@@ -719,22 +740,25 @@ export default function ChatPage() {
 
         if (contentType.includes("application/json")) {
           const data = await res.json();
-
           const { cleanText, suggestions } = parseSuggestedReplies(data.reply || "");
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[aiMessageIndex] = {
-              role: "ai",
-              text: cleanText,
-              timestamp: now,
-              suggestions: data.suggestions || suggestions,
-              emergency: !!data.emergency,
-              uiCard: data.uiCard,
-              actions: getIntegrationActions(cleanText),
-              isStreaming: false,
-            };
-            return updated;
-          });
+          
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMsgId
+                ? {
+                    ...msg,
+                    text: cleanText,
+                    timestamp: now,
+                    suggestions: data.suggestions || suggestions,
+                    emergency: !!data.emergency,
+                    uiCard: data.uiCard,
+                    actions: getIntegrationActions(cleanText),
+                    isStreaming: false,
+                  }
+                : msg
+            )
+          );
+
           if (typeof window !== "undefined" && (data.actionExecuted || data.uiCard)) {
             window.dispatchEvent(new Event("aarogya_data_changed"));
           }
@@ -745,7 +769,7 @@ export default function ChatPage() {
               "Urgent symptoms detected. Review emergency care details immediately."
             );
           }
-          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
+          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId, true), 500);
         } else {
           const reader = res.body!.getReader();
           const decoder = new TextDecoder();
@@ -760,33 +784,36 @@ export default function ChatPage() {
             
             const { cleanText, suggestions } = parseSuggestedReplies(accumulated);
 
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (updated[aiMessageIndex]) {
-                updated[aiMessageIndex] = {
-                  ...updated[aiMessageIndex],
-                  text: cleanText,
-                  suggestions: suggestions,
-                  isStreaming: true,
-                };
-              }
-              return updated;
-            });
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMsgId
+                  ? {
+                      ...msg,
+                      text: cleanText,
+                      suggestions: suggestions,
+                      isStreaming: true,
+                    }
+                  : msg
+              )
+            );
           }
 
           const { cleanText, suggestions } = parseSuggestedReplies(accumulated);
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[aiMessageIndex] = {
-              role: "ai",
-              text: cleanText,
-              timestamp: now,
-              suggestions,
-              actions: getIntegrationActions(cleanText),
-              isStreaming: false,
-            };
-            return updated;
-          });
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMsgId
+                ? {
+                    ...msg,
+                    text: cleanText,
+                    timestamp: now,
+                    suggestions,
+                    actions: getIntegrationActions(cleanText),
+                    isStreaming: false,
+                  }
+                : msg
+            )
+          );
+
           if (typeof window !== "undefined" && (cleanText.includes("Booked") || cleanText.includes("Saved") || cleanText.includes("Logged") || cleanText.includes("Deleted"))) {
             window.dispatchEvent(new Event("aarogya_data_changed"));
           }
@@ -797,7 +824,7 @@ export default function ChatPage() {
               "AarogyaMitra has finished generating your healthcare advice."
             );
           }
-          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
+          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId, true), 500);
         }
       } else {
         const { reply, session: updatedSession } = await getOfflineReply(
@@ -808,79 +835,43 @@ export default function ChatPage() {
         offlineSessionRef.current = updatedSession;
 
         const { cleanText, suggestions } = parseSuggestedReplies(reply);
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[aiMessageIndex] = {
-            role: "ai",
-            text: cleanText,
-            timestamp: now,
-            suggestions,
-            actions: getIntegrationActions(cleanText),
-            isStreaming: false,
-          };
-          return updated;
-        });
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMsgId
+              ? {
+                  ...msg,
+                  text: cleanText,
+                  timestamp: now,
+                  suggestions,
+                  actions: getIntegrationActions(cleanText),
+                  isStreaming: false,
+                }
+              : msg
+          )
+        );
 
         if (user?.email) {
           saveOfflineChat(user.email, userText, cleanText, targetConvoId, convoTitle);
         }
-        if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
+        if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId, true), 500);
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages((prev) => prev.slice(0, -1));
-
       const isActuallyOnline = typeof navigator !== "undefined" ? navigator.onLine : isOnline;
       const errMsg = error instanceof Error ? error.message : "Server is temporarily unavailable. Please try again.";
 
-      if (isActuallyOnline) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "ai",
-            text: errMsg,
-            timestamp: now,
-            isStreaming: false,
-          },
-        ]);
-      } else {
-        try {
-          const { reply, session: updatedSession } = await getOfflineReply(
-            userText,
-            language,
-            offlineSessionRef.current
-          );
-          offlineSessionRef.current = updatedSession;
-
-          const { cleanText, suggestions } = parseSuggestedReplies(reply);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "ai",
-              text: cleanText,
-              timestamp: now,
-              suggestions,
-              actions: getIntegrationActions(cleanText),
-              isStreaming: false,
-            },
-          ]);
-
-          if (user?.email) {
-            saveOfflineChat(user.email, userText, cleanText, targetConvoId, convoTitle);
-          }
-          if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
-        } catch {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "ai",
-              text: t("chat.emergencyWarning"),
-              timestamp: now,
-              isStreaming: false,
-            },
-          ]);
-        }
-      }
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMsgId
+            ? {
+                ...msg,
+                text: isActuallyOnline ? errMsg : t("chat.emergencyWarning"),
+                timestamp: now,
+                isStreaming: false,
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
       setStreaming(false);
@@ -1207,7 +1198,7 @@ export default function ChatPage() {
 
               return (
                 <div
-                  key={index}
+                  key={msg.id || `msg_${index}`}
                   className={`flex gap-3 items-start w-full ${
                     isAi ? "justify-start" : "justify-end"
                   }`}

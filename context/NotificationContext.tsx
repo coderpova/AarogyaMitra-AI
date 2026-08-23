@@ -65,6 +65,16 @@ interface NotificationContextProps {
 
 const NotificationContext = createContext<NotificationContextProps | undefined>(undefined);
 
+function getLocalDateString(d?: Date): string {
+  const date = d || new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+let inFlightSchedulesPromise: Promise<void> | null = null;
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializers for SSR safety and avoiding useEffect setstate warnings
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
@@ -267,24 +277,34 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token");
     if (!token) return;
-    const headers = { Authorization: `Bearer ${token}` };
 
-    try {
-      const [medRes, apptRes] = await Promise.all([
-        fetch("/api/medicines", { headers }),
-        fetch("/api/appointments", { headers }),
-      ]);
-      if (medRes.ok) {
-        const medData = await medRes.json();
-        setScheduledMedicines(medData.medicines || []);
-      }
-      if (apptRes.ok) {
-        const apptData = await apptRes.json();
-        setScheduledAppointments(apptData.appointments || []);
-      }
-    } catch (e) {
-      console.error("Failed to refresh scheduled notifications:", e);
+    if (inFlightSchedulesPromise) {
+      return inFlightSchedulesPromise;
     }
+
+    inFlightSchedulesPromise = (async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+        const [medRes, apptRes] = await Promise.all([
+          fetch("/api/medicines", { headers }),
+          fetch("/api/appointments", { headers }),
+        ]);
+        if (medRes.ok) {
+          const medData = await medRes.json();
+          setScheduledMedicines(medData.medicines || []);
+        }
+        if (apptRes.ok) {
+          const apptData = await apptRes.json();
+          setScheduledAppointments(apptData.appointments || []);
+        }
+      } catch (e) {
+        console.error("Failed to refresh scheduled notifications:", e);
+      } finally {
+        inFlightSchedulesPromise = null;
+      }
+    })();
+
+    return inFlightSchedulesPromise;
   };
 
   // Save settings helpers
@@ -392,15 +412,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const checkReminders = () => {
     if (!notificationsEnabled) return;
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0]; // "2026-08-09"
+    const todayStr = getLocalDateString(now);
     const currentHour = now.getHours();
     const currentMin = now.getMinutes();
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const currentDayName = dayNames[now.getDay()];
 
-    // Check Medicines
-    scheduledMedicines.forEach((med) => {
+    // Check Medicines with scheduling & date rules
+    scheduledMedicines.forEach((med: any) => {
       if (!med.reminder) return;
+
+      // Frequency check
+      if (med.frequency === "Once" && med.startDate && med.startDate !== todayStr) {
+        return;
+      }
+      if (med.frequency === "Custom" && Array.isArray(med.customDays) && med.customDays.length > 0) {
+        if (!med.customDays.includes(currentDayName)) return;
+      }
       
-      const timeMatch = med.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      const timeMatch = med.time?.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
       if (!timeMatch) return;
 
       let medHour = parseInt(timeMatch[1]);
@@ -476,8 +506,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     refreshSchedules();
     if (typeof window !== "undefined") {
-      window.addEventListener("focus", refreshSchedules);
-      return () => window.removeEventListener("focus", refreshSchedules);
+      const handleSync = () => refreshSchedules();
+      window.addEventListener("focus", handleSync);
+      window.addEventListener("aarogya_data_changed", handleSync);
+      return () => {
+        window.removeEventListener("focus", handleSync);
+        window.removeEventListener("aarogya_data_changed", handleSync);
+      };
     }
   }, []);
 

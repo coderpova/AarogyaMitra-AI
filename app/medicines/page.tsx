@@ -446,7 +446,7 @@ export default function MedicinesPage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation space-y-6 max-w-7xl mx-auto px-2 sm:px-4">
+      <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4">
         {/* Header Banner */}
         <div className={`text-white rounded-3xl p-6 sm:p-8 shadow-lg ${isOnline ? "bg-gradient-to-r from-blue-700 via-blue-600 to-teal-600" : "bg-gray-700"}`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

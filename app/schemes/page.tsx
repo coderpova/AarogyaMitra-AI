@@ -76,7 +76,7 @@ export default function SchemesPage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation space-y-6">
+      <div className="space-y-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
           <div className="relative z-10 max-w-3xl">

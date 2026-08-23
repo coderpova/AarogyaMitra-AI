@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import ActionCard from "@/components/dashboard/ActionCard";
 import HospitalCard from "@/components/hospital/HospitalCard";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import {
   HeartPulse,
@@ -90,15 +91,23 @@ interface Hospital {
   category?: string;
 }
 
+function getLocalDateString(d?: Date): string {
+  const date = d || new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /* ── Helper: Daily metric localStorage ───────────────────────────────────── */
 function getDailyMetric(key: string, defaultValue: number): number {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDateString();
   const stored = localStorage.getItem(`health_${key}_${today}`);
-  return stored !== null ? parseInt(stored) : defaultValue;
+  return stored !== null ? parseFloat(stored) : defaultValue;
 }
 
 function setDailyMetric(key: string, value: number) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDateString();
   localStorage.setItem(`health_${key}_${today}`, value.toString());
 }
 
@@ -235,6 +244,7 @@ function HealthTipCard({ icon, title, tip, color }: { icon: any; title: string; 
 
 export default function DashboardPage() {
   const { t } = useLanguage();
+  const { user: authUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -253,19 +263,23 @@ export default function DashboardPage() {
   const [bmiWeight, setBmiWeight] = useState("");
   const [bmiResult, setBmiResult] = useState<ReturnType<typeof computeBMI>>(null);
 
-  // GET USER & DASHBOARD DATA
+  // GET USER & DASHBOARD DATA (P1 #3 Auth Lifecycle + P0 #2 Unify Health Data Source + P1 #4 Event Refresh)
   useEffect(() => {
+    if (authLoading) return;
+
     const getData = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [userRes, medRes, apptRes, reportRes] = await Promise.all([
+        const [userRes, medRes, apptRes, reportRes, profileRes, timelineRes] = await Promise.all([
           fetch("/api/user", { headers }),
           fetch("/api/medicines", { headers }),
           fetch("/api/appointments", { headers }),
           fetch("/api/report-analyzer", { headers }),
+          fetch("/api/health-profile", { headers }),
+          fetch("/api/health-timeline", { headers }),
         ]);
 
         if (userRes.ok) {
@@ -284,33 +298,81 @@ export default function DashboardPage() {
           const reportData = await reportRes.json();
           setReports(reportData.reports || []);
         }
+
+        // Persistent health profile height/weight
+        if (profileRes.ok) {
+          const profData = await profileRes.json();
+          const p = profData.profile;
+          if (p?.height) {
+            setBmiHeight(String(p.height));
+            localStorage.setItem("health_height", String(p.height));
+          }
+          if (p?.weight) {
+            setBmiWeight(String(p.weight));
+            localStorage.setItem("health_weight", String(p.weight));
+          }
+          if (p?.height && p?.weight) {
+            setBmiResult(computeBMI(parseFloat(p.height), parseFloat(p.weight), t));
+          }
+        }
+
+        // Persistent health timeline hydration
+        if (timelineRes.ok) {
+          const timeData = await timelineRes.json();
+          const events: any[] = timeData.events || [];
+          const todayStr = getLocalDateString();
+          let todayWaterGlasses = 0;
+
+          events.forEach((ev) => {
+            if (ev.type === "vital_log" && ev.symptom === "Hydration" && ev.createdAt) {
+              const evDate = getLocalDateString(new Date(ev.createdAt));
+              if (evDate === todayStr) {
+                const valMatch = (ev.value || "").match(/(\d+\.?\d*)\s*(glass|glasses|l|litres)?/i);
+                if (valMatch) {
+                  let num = parseFloat(valMatch[1]);
+                  const unit = (valMatch[2] || "").toLowerCase();
+                  if (unit.includes("l") && !unit.includes("glass")) {
+                    num = num * 4; // 1L ~ 4 glasses
+                  }
+                  todayWaterGlasses += num;
+                }
+              }
+            }
+          });
+
+          if (todayWaterGlasses > 0) {
+            setWaterIntake(todayWaterGlasses);
+          }
+        }
       } catch (error) {
-        console.log(error);
+        console.log("Dashboard data fetch error:", error);
       }
     };
 
     getData();
+
     if (typeof window !== "undefined") {
-      window.addEventListener("aarogya_data_changed", getData);
-      return () => window.removeEventListener("aarogya_data_changed", getData);
+      const handleRefresh = () => getData();
+      window.addEventListener("aarogya_data_changed", handleRefresh);
+      return () => window.removeEventListener("aarogya_data_changed", handleRefresh);
     }
-  }, []);
+  }, [authLoading, t]);
 
-  // Load daily metrics from localStorage on mount
+  // Fallback metric initialization from local storage
   useEffect(() => {
-
-    setWaterIntake(getDailyMetric("water", 0));
+    if (!waterIntake) setWaterIntake(getDailyMetric("water", 0));
     setExerciseMin(getDailyMetric("exercise", 0));
     setSleepHrs(getDailyMetric("sleep", 0));
 
-    const h = localStorage.getItem("health_height");
-    const w = localStorage.getItem("health_weight");
-    if (h) setBmiHeight(h);
-    if (w) setBmiWeight(w);
-    if (h && w) {
-      setBmiResult(computeBMI(parseFloat(h), parseFloat(w), t));
+    if (!bmiHeight) {
+      const h = localStorage.getItem("health_height");
+      if (h) setBmiHeight(h);
     }
-  }, [t]);
+    if (!bmiWeight) {
+      const w = localStorage.getItem("health_weight");
+      if (w) setBmiWeight(w);
+    }
+  }, [waterIntake, bmiHeight, bmiWeight]);
 
   // FIND HOSPITALS
   const findHospitals = () => {

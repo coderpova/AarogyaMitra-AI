@@ -147,6 +147,8 @@ export default function ProfilePage() {
     bloodGroup: "",
     phone: "",
     address: "",
+    height: "",
+    weight: "",
   });
 
   useEffect(() => {
@@ -174,6 +176,8 @@ export default function ProfilePage() {
             bloodGroup: data.user.profile?.bloodGroup || "",
             phone: data.user.profile?.phone || "",
             address: data.user.profile?.address || "",
+            height: data.user.profile?.height || "",
+            weight: data.user.profile?.weight || "",
           });
         } else {
           toast.error(data.message);
@@ -226,7 +230,7 @@ export default function ProfilePage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation space-y-6">
+      <div className="space-y-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-3xl p-8 shadow-lg">
           <h1 className="text-3xl sm:text-4xl font-bold">{t("profile.title")}</h1>
@@ -249,11 +253,23 @@ export default function ProfilePage() {
                 {user?.email}
               </p>
 
-              {user?.profile?.bloodGroup && (
-                <span className="inline-flex items-center gap-1 mt-2 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-3 py-1 rounded-full text-xs font-bold">
-                  🩸 {user.profile.bloodGroup}
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2 mt-2 justify-center sm:justify-start">
+                {user?.profile?.bloodGroup && (
+                  <span className="inline-flex items-center gap-1 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-3 py-1 rounded-full text-xs font-bold">
+                    🩸 {user.profile.bloodGroup}
+                  </span>
+                )}
+                {user?.profile?.height && (
+                  <span className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold">
+                    📏 {user.profile.height} cm
+                  </span>
+                )}
+                {user?.profile?.weight && (
+                  <span className="inline-flex items-center gap-1 bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold">
+                    ⚖️ {user.profile.weight} kg
+                  </span>
+                )}
+              </div>
 
               <button
                 onClick={() => setEditMode(!editMode)}
@@ -269,6 +285,31 @@ export default function ProfilePage() {
         {/* Edit Form */}
         {editMode && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-lg p-8 grid md:grid-cols-2 gap-5 border border-gray-100 dark:border-gray-700 fade-in-up">
+            <div>
+              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
+                Height (cm)
+              </label>
+              <input
+                type="number"
+                placeholder="170"
+                value={formData.height}
+                onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium dark:text-gray-200">
+                Weight (kg)
+              </label>
+              <input
+                type="number"
+                placeholder="68"
+                value={formData.weight}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                className="w-full border p-3 rounded-xl dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
             <div>
               <label className="block mb-1 text-sm font-medium dark:text-gray-200">
                 {t("profile.age")}

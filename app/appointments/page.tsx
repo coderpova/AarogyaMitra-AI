@@ -187,7 +187,7 @@ export default function AppointmentsPage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation">
+      <div>
         {/* Header */}
         <div className="bg-blue-700 text-white rounded-3xl p-8 shadow-lg">
           <h1 className="text-3xl sm:text-4xl font-bold">

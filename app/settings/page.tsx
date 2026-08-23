@@ -139,7 +139,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation space-y-8">
+      <div className="space-y-8">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-3xl p-8 shadow-lg">
           <h1 className="text-4xl font-bold">{t("settings.title")}</h1>

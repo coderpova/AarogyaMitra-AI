@@ -68,13 +68,20 @@ export default function ReportAnalyzerPage() {
   const { t, language } = useLanguage();
   const router = useRouter();
   const [reportText, setReportText] = useState("");
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<"scan" | "history">("scan");
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const fetchHistory = async () => {
     try {
@@ -94,7 +101,6 @@ export default function ReportAnalyzerPage() {
   };
 
   useEffect(() => {
-
     fetchHistory();
   }, []);
 
@@ -107,20 +113,29 @@ export default function ReportAnalyzerPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      setImageBase64(result);
-      setImagePreview(result);
-      toast.success(t("reportAnalyzerExt.succAttach"));
-    };
-    reader.readAsDataURL(file);
+    if (imagePreview && imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setSelectedFile(file);
+    setImagePreview(objectUrl);
+    toast.success(t("reportAnalyzerExt.succAttach"));
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const analyzeReport = async (textToUse?: string, isSample?: boolean) => {
     const text = textToUse !== undefined ? textToUse : reportText;
 
-    if (!text.trim() && !imageBase64) {
+    if (!text.trim() && !selectedFile && !imagePreview) {
       toast.error(t("reportAnalyzerExt.errUpload"));
       return;
     }
@@ -129,6 +144,13 @@ export default function ReportAnalyzerPage() {
     setAnalysis(null);
 
     try {
+      let imageBase64Payload: string | null = null;
+      if (selectedFile) {
+        imageBase64Payload = await fileToBase64(selectedFile);
+      } else if (imagePreview && !imagePreview.startsWith("blob:")) {
+        imageBase64Payload = imagePreview;
+      }
+
       const token = localStorage.getItem("token");
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -142,7 +164,7 @@ export default function ReportAnalyzerPage() {
         headers,
         body: JSON.stringify({
           reportText: text,
-          imageBase64: imageBase64,
+          imageBase64: imageBase64Payload,
           language: language,
           isSample: isSample === true,
         }),
@@ -172,7 +194,7 @@ export default function ReportAnalyzerPage() {
 
   const loadSample = (sampleText: string) => {
     setReportText(sampleText);
-    setImageBase64(null);
+    setSelectedFile(null);
     setImagePreview(null);
     analyzeReport(sampleText, true);
   };
@@ -197,7 +219,7 @@ export default function ReportAnalyzerPage() {
 
   const clearAll = () => {
     setReportText("");
-    setImageBase64(null);
+    setSelectedFile(null);
     setImagePreview(null);
     setAnalysis(null);
   };
@@ -239,7 +261,7 @@ export default function ReportAnalyzerPage() {
 
   return (
     <DashboardLayout>
-      <div className="page-animation">
+      <div>
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-600 text-white rounded-3xl p-8 shadow-xl relative overflow-hidden">
           <div className="relative z-10">
@@ -313,7 +335,7 @@ export default function ReportAnalyzerPage() {
                     />
                     <button
                       onClick={() => {
-                        setImageBase64(null);
+                        setSelectedFile(null);
                         setImagePreview(null);
                       }}
                       className="mt-3 text-xs bg-red-100 text-red-600 px-3 py-1 rounded-lg font-semibold hover:bg-red-200"

@@ -15,6 +15,8 @@ export interface UserProfileData {
   bloodGroup?: string;
   phone?: string;
   address?: string;
+  height?: number | string;
+  weight?: number | string;
 }
 
 export interface User {

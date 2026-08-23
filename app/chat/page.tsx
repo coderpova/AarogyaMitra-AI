@@ -1398,14 +1398,12 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Spacer for bottom composer */}
-            <div className="h-32 shrink-0" />
             <div ref={chatEndRef} />
           </div>
         </div>
 
         {/* INPUT COMPOSER CONTAINER */}
-        <div className="absolute bottom-0 left-0 right-0 md:left-auto md:right-0 md:w-[calc(100%-18rem)] p-3 sm:p-4 bg-gradient-to-t from-gray-50 via-gray-50/95 to-transparent dark:from-gray-950 dark:via-gray-950/95 dark:to-transparent shrink-0">
+        <div className="shrink-0 p-3 sm:p-4 bg-slate-50/95 dark:bg-gray-950/95 border-t border-gray-200 dark:border-gray-850">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-end gap-2.5 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-850 p-2 sm:p-3 shadow-md">
               <textarea

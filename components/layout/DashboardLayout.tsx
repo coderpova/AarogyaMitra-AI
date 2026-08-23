@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Footer from "./Footer";
 import { Menu, HeartPulse } from "lucide-react";
@@ -13,6 +13,21 @@ export default function DashboardLayout({
   hideFooter?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      if (open) {
+        document.body.style.overflow = "hidden";
+      } else {
+        document.body.style.overflow = "";
+      }
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.body.style.overflow = "";
+      }
+    };
+  }, [open]);
 
   return (
     <div className="min-h-[100dvh] w-full bg-slate-50 dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">

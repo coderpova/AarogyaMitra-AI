@@ -132,7 +132,17 @@ body {
 
 /* Smooth transitions for all interactive elements */
 a, button, input, select, textarea, [role="button"], .card, .interactive-element {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-animation, .chat-msg-ai, .chat-msg-user, .fade-in-up, .pulse-ring,
+  a, button, input, select, textarea, [role="button"], .card, .interactive-element {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 button:active:not(:disabled), a:active:not(.no-scale) {

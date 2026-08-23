@@ -26,7 +26,6 @@ import {
   Droplet,
   Dumbbell,
   Moon,
-  Scale,
   Phone,
   AlertCircle,
   ChevronRight,
@@ -34,7 +33,6 @@ import {
   Minus,
   FileText,
   Siren,
-  TrendingDown,
   LucideIcon,
 } from "lucide-react";
 
@@ -111,56 +109,7 @@ function setDailyMetric(key: string, value: number) {
   localStorage.setItem(`health_${key}_${today}`, value.toString());
 }
 
-/* ── Helper: BMI computation ─────────────────────────────────────────────── */
-function computeBMI(height: number, weight: number, t: any) {
-  if (!height || !weight || height <= 0 || weight <= 0) return null;
-  const h = height / 100;
-  const bmi = Math.round((weight / (h * h)) * 10) / 10;
-  if (!t) {
-    if (bmi < 18.5) return { value: bmi, label: "Underweight", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: "Consider increasing caloric intake." };
-    if (bmi < 25) return { value: bmi, label: "Normal weight", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: "Maintain current healthy lifestyle." };
-    if (bmi < 30) return { value: bmi, label: "Overweight", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: "Regular exercise recommended." };
-    return { value: bmi, label: "Obese", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: "Consult a healthcare professional." };
-  }
-  if (bmi < 18.5) return { value: bmi, label: t("dashboardExt.bmiUnderL"), color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40", advice: t("dashboardExt.bmiUnderD") };
-  if (bmi < 25) return { value: bmi, label: t("dashboardExt.bmiNormL"), color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", advice: t("dashboardExt.bmiNormD") };
-  if (bmi < 30) return { value: bmi, label: t("dashboardExt.bmiOverL"), color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", advice: t("dashboardExt.bmiOverD") };
-  return { value: bmi, label: t("dashboardExt.bmiObeseL"), color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", advice: t("dashboardExt.bmiObeseD") };
-}
 
-/* ── Helper: Risk level computation ──────────────────────────────────────── */
-function getRiskLevel(healthScore: number, reports: any[], t: any) {
-  let abnormalCount = 0;
-  reports.slice(0, 3).forEach((r) => {
-    if (r.parameters) {
-      abnormalCount += r.parameters.filter(
-        (p: any) => p.status === "High" || p.status === "Low" || p.status === "Critical"
-      ).length;
-    }
-  });
-
-  const hasCritical = reports.some((r) =>
-    r.parameters?.some((p: any) => p.status === "Critical")
-  );
-
-  if (!t) {
-    if (healthScore < 40 || hasCritical) {
-      return { label: "High Risk", color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-300 dark:border-red-800", description: "Critical parameters found. Immediate medical attention advised." };
-    }
-    if (healthScore < 60 || abnormalCount >= 2) {
-      return { label: "Moderate Risk", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-300 dark:border-amber-800", description: "Monitor health and consult a doctor soon." };
-    }
-    return { label: "Low Risk", color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-300 dark:border-green-800", description: "Your health indicators look good!" };
-  }
-
-  if (healthScore < 40 || hasCritical) {
-    return { label: t("dashboardExt.riskHighL"), color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-300 dark:border-red-800", description: t("dashboardExt.riskHighD") };
-  }
-  if (healthScore < 60 || abnormalCount >= 2) {
-    return { label: t("dashboardExt.riskModL"), color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-300 dark:border-amber-800", description: t("dashboardExt.riskModD") };
-  }
-  return { label: t("dashboardExt.riskLowL"), color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-300 dark:border-green-800", description: t("dashboardExt.riskLowD") };
-}
 
 /* ── Animated Circular Progress ─────────────────────────────────────────── */
 function CircularProgress({ value, label, size = 140 }: { value: number; label: string; size?: number }) {
@@ -240,9 +189,7 @@ export default function DashboardPage() {
   const [waterIntake, setWaterIntake] = useState(0);
   const [exerciseMin, setExerciseMin] = useState(0);
   const [sleepHrs, setSleepHrs] = useState(0);
-  const [bmiHeight, setBmiHeight] = useState("");
-  const [bmiWeight, setBmiWeight] = useState("");
-  const [bmiResult, setBmiResult] = useState<ReturnType<typeof computeBMI>>(null);
+
 
   // GET USER & DASHBOARD DATA (P1 #3 Auth Lifecycle + P0 #2 Unify Health Data Source + P1 #4 Event Refresh)
   useEffect(() => {
@@ -254,12 +201,11 @@ export default function DashboardPage() {
         if (!token) return;
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [userRes, medRes, apptRes, reportRes, profileRes, timelineRes] = await Promise.all([
+        const [userRes, medRes, apptRes, reportRes, timelineRes] = await Promise.all([
           fetch("/api/user", { headers }),
           fetch("/api/medicines", { headers }),
           fetch("/api/appointments", { headers }),
           fetch("/api/report-analyzer", { headers }),
-          fetch("/api/health-profile", { headers }),
           fetch("/api/health-timeline", { headers }),
         ]);
 
@@ -280,22 +226,7 @@ export default function DashboardPage() {
           setReports(reportData.reports || []);
         }
 
-        // Persistent health profile height/weight
-        if (profileRes.ok) {
-          const profData = await profileRes.json();
-          const p = profData.profile;
-          if (p?.height) {
-            setBmiHeight(String(p.height));
-            localStorage.setItem("health_height", String(p.height));
-          }
-          if (p?.weight) {
-            setBmiWeight(String(p.weight));
-            localStorage.setItem("health_weight", String(p.weight));
-          }
-          if (p?.height && p?.weight) {
-            setBmiResult(computeBMI(parseFloat(p.height), parseFloat(p.weight), t));
-          }
-        }
+
 
         // Persistent health timeline metrics (Water, Sleep, Exercise)
         if (timelineRes.ok) {
@@ -380,21 +311,11 @@ export default function DashboardPage() {
     }
   }, [authLoading, t]);
 
-  // Fallback metric initialization from local storage
   useEffect(() => {
     if (!waterIntake) setWaterIntake(getDailyMetric("water", 0));
     setExerciseMin(getDailyMetric("exercise", 0));
     setSleepHrs(getDailyMetric("sleep", 0));
-
-    if (!bmiHeight) {
-      const h = localStorage.getItem("health_height");
-      if (h) setBmiHeight(h);
-    }
-    if (!bmiWeight) {
-      const w = localStorage.getItem("health_weight");
-      if (w) setBmiWeight(w);
-    }
-  }, [waterIntake, bmiHeight, bmiWeight]);
+  }, [waterIntake]);
 
   // FIND HOSPITALS
   const findHospitals = () => {
@@ -443,17 +364,6 @@ export default function DashboardPage() {
     setSleepHrs(newVal);
     setDailyMetric("sleep", newVal);
   };
-
-  const calculateBMI = () => {
-    const h = parseFloat(bmiHeight);
-    const w = parseFloat(bmiWeight);
-    if (!h || !w || h <= 0 || w <= 0) return;
-    const result = computeBMI(h, w, t);
-    setBmiResult(result);
-    localStorage.setItem("health_height", bmiHeight);
-    localStorage.setItem("health_weight", bmiWeight);
-  };
-
   const healthScore = user?.health?.healthScore || 0;
   const heartRate = user?.health?.heartRate || 0;
   const steps = user?.health?.steps || 0;
@@ -498,7 +408,6 @@ export default function DashboardPage() {
   const nextAppt = upcomingAppointments[0];
 
   const recentReports = reports.slice(0, 3);
-  const riskLevel = getRiskLevel(healthScore, reports, t);
 
   // Build health timeline
   const timelineEvents: Array<{ date: string; title: string; type: string; icon: LucideIcon }> = [];
@@ -606,65 +515,29 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 2: Health Score + Risk Level + BMI */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Row 2: Health Score */}
+        <div className="grid grid-cols-1 gap-6">
           {/* AI Health Score */}
-          <div className="animate-dash-card delay-1 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
-            <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
-              <Shield size={18} className="text-blue-600" /> {t("dashboard.healthScore")}
-            </h2>
-            <CircularProgress value={animatedHealthScore} label={t("dashboard.healthScore")} size={120} />
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-              {healthScore >= 80 ? t("dashboardExt.healthGreat") : healthScore >= 50 ? t("dashboardExt.healthMod") : t("dashboardExt.healthPoor")}
-            </p>
-          </div>
-
-          {/* Risk Level */}
-          <div className={`animate-dash-card delay-2 rounded-3xl p-6 shadow-md border-2 ${riskLevel.border} ${riskLevel.bg} flex flex-col justify-center hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200`}>
-            <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
-              <AlertCircle size={18} className={riskLevel.color} /> {t("dashboardExt.riskLevel")}
-            </h2>
-            <div className="flex items-center gap-4">
-              <div className={`text-4xl font-bold ${riskLevel.color}`}>{riskLevel.label.split(" ")[0]}</div>
-              <TrendingDown size={32} className={riskLevel.color} />
-            </div>
-            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{riskLevel.description}</p>
-            <div className="mt-3 flex gap-4 text-xs">
-              <div className="flex items-center gap-1">
-                <HeartPulse size={14} className="text-red-500" />
-                <span className="text-gray-600 dark:text-gray-300">{animatedHeartRate || "--"} {t("dashboardExt.unitBpm")}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Activity size={14} className="text-green-500" />
-                <span className="text-gray-600 dark:text-gray-300">{animatedSteps || "--"} {t("dashboardExt.unitSteps")}</span>
+          <div className="animate-dash-card delay-1 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-around hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200 gap-6">
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <h2 className="text-base font-bold dark:text-white mb-2 flex items-center gap-2">
+                <Shield size={20} className="text-blue-600" /> {t("dashboard.healthScore")}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                {healthScore >= 80 ? t("dashboardExt.healthGreat") : healthScore >= 50 ? t("dashboardExt.healthMod") : t("dashboardExt.healthPoor")}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-4 text-xs">
+                <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/40 px-3 py-1.5 rounded-xl text-red-600 font-medium">
+                  <HeartPulse size={16} />
+                  <span>{animatedHeartRate || "--"} {t("dashboardExt.unitBpm")}</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950/40 px-3 py-1.5 rounded-xl text-green-600 font-medium">
+                  <Activity size={16} />
+                  <span>{animatedSteps || "--"} {t("dashboardExt.unitSteps")}</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* BMI Widget */}
-          <div className="animate-dash-card delay-3 bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-md border border-gray-100 dark:border-gray-700 hover:-translate-y-[1px] hover:shadow-lg transition-all duration-200">
-            <h2 className="text-sm font-bold dark:text-white mb-3 flex items-center gap-2">
-              <Scale size={18} className="text-blue-600" /> {t("dashboardExt.bmiCalc")}
-            </h2>
-            {bmiResult ? (
-              <div className="flex flex-col items-center">
-                <div className={`text-4xl font-bold ${bmiResult.color}`}>{bmiResult.value}</div>
-                <span className={`mt-1 text-sm font-semibold px-3 py-0.5 rounded-full ${bmiResult.bg} ${bmiResult.color}`}>{bmiResult.label}</span>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{bmiResult.advice}</p>
-                <button
-                  onClick={() => { setBmiResult(null); }}
-                  className="mt-2 text-xs text-blue-600 hover:underline"
-                >
-                  {t("dashboardExt.btnRecalc")}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input type="number" value={bmiHeight} onChange={(e) => setBmiHeight(e.target.value)} placeholder={t("dashboardExt.phHeight")} className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                <input type="number" value={bmiWeight} onChange={(e) => setBmiWeight(e.target.value)} placeholder={t("dashboardExt.phWeight")} className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                <button onClick={calculateBMI} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold transition">{t("dashboardExt.btnCalcBmi")}</button>
-              </div>
-            )}
+            <CircularProgress value={animatedHealthScore} label={t("dashboard.healthScore")} size={130} />
           </div>
         </div>
 

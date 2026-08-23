@@ -1,14 +1,6 @@
 import mongoose from "mongoose";
-import dns from "dns/promises";
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/aarogya_test";
-
-if (!MONGODB_URI) {
-  throw new Error("Please define MONGODB_URI in .env.local");
-}
-
-// Force Google DNS
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -16,7 +8,7 @@ interface MongooseCache {
 }
 
 declare global {
-    let mongoose: MongooseCache | undefined;
+  let mongoose: MongooseCache | undefined;
 }
 
 if (!(globalThis as any).mongoose) {
@@ -28,26 +20,27 @@ if (!(globalThis as any).mongoose) {
 const cached = (globalThis as any).mongoose;
 
 async function connectDB() {
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
-      family: 4,
-    });
+  if (!cached.promise || mongoose.connection.readyState === 0) {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 5000,
+    };
+
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => m);
   }
 
   try {
     cached.conn = await cached.promise;
-    console.log("MongoDB Connected ✅");
     return cached.conn;
   } catch (err) {
-    console.warn("[RAG] MongoDB connection failed (fallback to seed data):", err);
-    // Resolve promise to avoid hanging on subsequent calls
+    console.error("[MongoDB] Connection error:", err);
     cached.conn = null;
-    cached.promise = Promise.resolve(null as any);
-    return null;
+    cached.promise = null; // Do NOT cache failed promise, allow retry on next call
+    throw err;
   }
 }
 

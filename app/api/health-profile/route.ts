@@ -1,35 +1,8 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import HealthEvent from "@/models/HealthEvent";
-import Medicine from "@/models/Medicine";
-
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET missing in environment");
-}
-
-function getAuthenticatedUserId(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  let token = authHeader ? authHeader.split(" ")[1] : null;
-
-  if (!token) {
-    const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-    token = match ? match[1] : null;
-  }
-
-  if (!token) return null;
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded.userId || null;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserId } from "@/lib/jwtHelper";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/health-profile
@@ -37,7 +10,7 @@ function getAuthenticatedUserId(request: Request): string | null {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -82,7 +55,7 @@ export async function GET(request: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function PUT(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -134,12 +107,12 @@ export async function PUT(request: Request) {
         success: true,
         message: "Health profile and AI preferences updated successfully",
         profile: {
-          name: updatedUser.name,
-          email: updatedUser.email,
-          basicProfile: updatedUser.profile || {},
-          medicalHistory: updatedUser.medicalHistory || [],
-          allergies: updatedUser.allergies || [],
-          aiPreferences: updatedUser.aiPreferences || {},
+          name: updatedUser?.name || "",
+          email: updatedUser?.email || "",
+          basicProfile: updatedUser?.profile || {},
+          medicalHistory: updatedUser?.medicalHistory || [],
+          allergies: updatedUser?.allergies || [],
+          aiPreferences: updatedUser?.aiPreferences || {},
         },
       },
       { status: 200 }
@@ -160,7 +133,7 @@ export async function POST(request: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function DELETE(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -169,10 +142,9 @@ export async function DELETE(request: Request) {
 
     const url = new URL(request.url);
     const clearAll = url.searchParams.get("clearAll") === "true";
-    const itemType = url.searchParams.get("type"); // "history", "allergy", "all"
+    const itemType = url.searchParams.get("type");
 
     if (clearAll || itemType === "all") {
-      // 1. Reset AI preferences to all FALSE
       await User.findByIdAndUpdate(authenticatedUserId, {
         $set: {
           medicalHistory: [],
@@ -187,7 +159,6 @@ export async function DELETE(request: Request) {
         },
       });
 
-      // 2. Soft-delete all HealthEvents for this user
       await HealthEvent.updateMany(
         { userId: authenticatedUserId },
         { $set: { isDeleted: true } }

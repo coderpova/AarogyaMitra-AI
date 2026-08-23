@@ -5,11 +5,11 @@ import connectDB from "@/lib/mongodb";
 import ReportHistory from "@/models/ReportHistory";
 import User from "@/models/User";
 import { extractImagesFromPDF } from "@/lib/pdfImageExtractor";
+import { getAuthUserId, getJwtSecret } from "@/lib/jwtHelper";
+
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
-
-const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function parseObservedValue(valStr: string | null | undefined): number | null {
   if (valStr === null || valStr === undefined) return null;
@@ -294,23 +294,21 @@ JSON Schema:
 // GET: Fetch report history
 export async function GET(request: Request) {
   try {
-    await connectDB();
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
+    const userId = getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json(
-        { message: "No token provided", reports: [] },
+        { message: "No token provided or invalid token", reports: [] },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    await connectDB();
 
-    const reports = await ReportHistory.find({ userId: decoded.userId }).sort({
+    const reports = await ReportHistory.find({ userId }).sort({
       createdAt: -1,
     });
 
-    return NextResponse.json({ reports }, { status: 200 });
+    return NextResponse.json({ reports: reports || [] }, { status: 200 });
   } catch (error) {
     console.error("GET ReportHistory Error:", error);
     return NextResponse.json(
@@ -325,17 +323,7 @@ export async function POST(request: Request) {
   try {
     await connectDB();
 
-    let userId = "guest";
-    const authHeader = request.headers.get("authorization");
-    if (authHeader) {
-      try {
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-        if (decoded.userId) userId = decoded.userId;
-      } catch {
-        console.log("Token decode skipped for guest scanner");
-      }
-    }
+    const userId = getAuthUserId(request) || "guest";
 
     const body = await request.json();
     let { reportText, imageBase64 } = body;

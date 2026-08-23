@@ -1,33 +1,7 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import HealthEvent from "@/models/HealthEvent";
-
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET missing in environment");
-}
-
-function getAuthenticatedUserId(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  let token = authHeader ? authHeader.split(" ")[1] : null;
-
-  if (!token) {
-    const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-    token = match ? match[1] : null;
-  }
-
-  if (!token) return null;
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded.userId || null;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserId } from "@/lib/jwtHelper";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/health-timeline
@@ -36,7 +10,7 @@ function getAuthenticatedUserId(request: Request): string | null {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -94,7 +68,7 @@ export async function GET(request: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -148,7 +122,7 @@ export async function POST(request: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function PUT(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -207,7 +181,7 @@ export async function PUT(request: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function DELETE(request: Request) {
   try {
-    const authenticatedUserId = getAuthenticatedUserId(request);
+    const authenticatedUserId = getAuthUserId(request);
     if (!authenticatedUserId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

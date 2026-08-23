@@ -1,49 +1,24 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Chat from "@/models/chat";
-import jwt from "jsonwebtoken";
+import { getAuthUserId, verifyJwt } from "@/lib/jwtHelper";
 
 export async function POST(req: Request) {
   try {
     const { conversationId, archived } = await req.json();
 
-    let authenticatedUserId = null;
-    let authenticatedUserEmail = null;
-    const authHeader = req.headers.get("authorization");
-    let token = authHeader ? authHeader.split(" ")[1] : null;
-
-    if (!token) {
-      const cookieHeader = req.headers.get("cookie") || "";
-      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-      token = match ? match[1] : null;
-    }
-
-    if (token) {
-      try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        authenticatedUserId = decoded.userId;
-        authenticatedUserEmail = decoded.email;
-      } catch (err) {
-        // invalid token
-      }
-    }
-
+    const authenticatedUserId = getAuthUserId(req);
     if (!authenticatedUserId) {
       return NextResponse.json(
-        { message: "Unauthorized. Please log in." },
+        { message: "Unauthorized. Please log in.", chats: [] },
         { status: 401 }
       );
     }
 
     await connectDB();
 
-    const userIds = [authenticatedUserId];
-    if (authenticatedUserEmail) {
-      userIds.push(authenticatedUserEmail);
-    }
-
     const query: Record<string, any> = {
-      userId: { $in: userIds }
+      userId: authenticatedUserId,
     };
 
     if (conversationId) {
@@ -57,29 +32,15 @@ export async function POST(req: Request) {
     }
 
     const chats = await Chat.find(query)
-    .sort({
-      createdAt:1
-    })
-    .limit(200);
+      .sort({ createdAt: 1 })
+      .limit(200);
 
-    return NextResponse.json({
-      chats
-    });
-
-  }
-  catch(error){
-    console.error(
-      "HISTORY ERROR:",
-      error
-    );
-
+    return NextResponse.json({ chats: chats || [] }, { status: 200 });
+  } catch (error) {
+    console.error("HISTORY ERROR:", error);
     return NextResponse.json(
-      {
-        message:"Failed to fetch history"
-      },
-      {
-        status:500
-      }
+      { message: "Failed to fetch history", chats: [] },
+      { status: 500 }
     );
   }
 }
@@ -88,7 +49,7 @@ export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const conversationId = searchParams.get("conversationId");
-    const archiveParam = searchParams.get("archive"); // "true" or "false"
+    const archiveParam = searchParams.get("archive");
 
     if (!conversationId) {
       return NextResponse.json(
@@ -99,27 +60,7 @@ export async function PUT(req: Request) {
 
     const isArchived = archiveParam === "true";
 
-    let authenticatedUserId = null;
-    let authenticatedUserEmail = null;
-    const authHeader = req.headers.get("authorization");
-    let token = authHeader ? authHeader.split(" ")[1] : null;
-
-    if (!token) {
-      const cookieHeader = req.headers.get("cookie") || "";
-      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-      token = match ? match[1] : null;
-    }
-
-    if (token) {
-      try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        authenticatedUserId = decoded.userId;
-        authenticatedUserEmail = decoded.email;
-      } catch (err) {
-        // invalid token
-      }
-    }
-
+    const authenticatedUserId = getAuthUserId(req);
     if (!authenticatedUserId) {
       return NextResponse.json(
         { message: "Unauthorized. Please log in." },
@@ -129,17 +70,12 @@ export async function PUT(req: Request) {
 
     await connectDB();
 
-    const userIds = [authenticatedUserId];
-    if (authenticatedUserEmail) {
-      userIds.push(authenticatedUserEmail);
-    }
-
-    const query: Record<string, any> = { userId: { $in: userIds } };
+    const query: Record<string, any> = { userId: authenticatedUserId };
     if (conversationId === "legacy") {
       query.$or = [
         { conversationId: { $exists: false } },
         { conversationId: null },
-        { conversationId: "" }
+        { conversationId: "" },
       ];
     } else {
       query.conversationId = conversationId;
@@ -172,27 +108,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    let authenticatedUserId = null;
-    let authenticatedUserEmail = null;
-    const authHeader = req.headers.get("authorization");
-    let token = authHeader ? authHeader.split(" ")[1] : null;
-
-    if (!token) {
-      const cookieHeader = req.headers.get("cookie") || "";
-      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-      token = match ? match[1] : null;
-    }
-
-    if (token) {
-      try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        authenticatedUserId = decoded.userId;
-        authenticatedUserEmail = decoded.email;
-      } catch (err) {
-        // invalid token
-      }
-    }
-
+    const authenticatedUserId = getAuthUserId(req);
     if (!authenticatedUserId) {
       return NextResponse.json(
         { message: "Unauthorized. Please log in." },
@@ -202,17 +118,12 @@ export async function DELETE(req: Request) {
 
     await connectDB();
 
-    const userIds = [authenticatedUserId];
-    if (authenticatedUserEmail) {
-      userIds.push(authenticatedUserEmail);
-    }
-
-    const deleteQuery: Record<string, any> = { userId: { $in: userIds } };
+    const deleteQuery: Record<string, any> = { userId: authenticatedUserId };
     if (conversationId === "legacy") {
       deleteQuery.$or = [
         { conversationId: { $exists: false } },
         { conversationId: null },
-        { conversationId: "" }
+        { conversationId: "" },
       ];
     } else {
       deleteQuery.conversationId = conversationId;

@@ -1,92 +1,56 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-
 import connectDB from "@/lib/mongodb";
 import Appointment from "@/models/Appointment";
-
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET missing");
-}
+import { getAuthUserId } from "@/lib/jwtHelper";
 
 // =======================
 // GET APPOINTMENTS
 // =======================
-
 export async function GET(request: Request) {
   try {
+    const userId = getAuthUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { message: "No token provided", appointments: [] },
+        { status: 401 }
+      );
+    }
+
     await connectDB();
 
-    const authHeader = request.headers.get("authorization");
+    const appointments = await Appointment.find({
+      userId,
+    }).sort({
+      createdAt: -1,
+    });
 
-    if (!authHeader) {
+    return NextResponse.json(
+      { appointments: appointments || [] },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("GET appointments error:", error);
+    return NextResponse.json(
+      { message: "Server Error", appointments: [] },
+      { status: 500 }
+    );
+  }
+}
+
+// =======================
+// ADD APPOINTMENT
+// =======================
+export async function POST(request: Request) {
+  try {
+    const userId = getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json(
         { message: "No token provided" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-    };
-
-    const appointments = await Appointment.find({
-      userId: decoded.userId,
-    }).sort({
-      createdAt: -1,
-    });
-
-    return NextResponse.json(
-      {
-        appointments,
-      },
-      {
-        status: 200,
-      }
-    );
-  } catch (error) {
-    console.error("GET appointments error:", error);
-
-    return NextResponse.json(
-      {
-        message: "Server Error",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
-}
-
-// =======================
-// BOOK APPOINTMENT
-// =======================
-
-export async function POST(request: Request) {
-  try {
     await connectDB();
-
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader) {
-      return NextResponse.json(
-        {
-          message: "No token provided",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-    };
 
     const body = await request.json();
 
@@ -98,17 +62,13 @@ export async function POST(request: Request) {
       !body.time
     ) {
       return NextResponse.json(
-        {
-          message: "All fields are required",
-        },
-        {
-          status: 400,
-        }
+        { message: "All appointment fields are required" },
+        { status: 400 }
       );
     }
 
     const appointment = await Appointment.create({
-      userId: decoded.userId,
+      userId,
       patientName: body.patientName,
       doctorName: body.doctorName,
       hospital: body.hospital,
@@ -118,109 +78,24 @@ export async function POST(request: Request) {
     });
 
     const appointments = await Appointment.find({
-      userId: decoded.userId,
+      userId,
     }).sort({
       createdAt: -1,
     });
 
     return NextResponse.json(
       {
-        message: "Appointment Booked",
+        message: "Appointment Booked Successfully",
         appointment,
         appointments,
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
   } catch (error) {
     console.error("POST appointment error:", error);
-
     return NextResponse.json(
-      {
-        message: "Booking failed",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
-}
-
-// =======================
-// UPDATE STATUS
-// =======================
-
-export async function PATCH(request: Request) {
-  try {
-    await connectDB();
-
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader) {
-      return NextResponse.json(
-        {
-          message: "No token provided",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-    };
-
-    const { id, status } = await request.json();
-
-    const appointment = await Appointment.findOne({
-      _id: id,
-      userId: decoded.userId,
-    });
-
-    if (!appointment) {
-      return NextResponse.json(
-        {
-          message: "Appointment not found",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    appointment.status = status;
-
-    await appointment.save();
-
-    const appointments = await Appointment.find({
-      userId: decoded.userId,
-    }).sort({
-      createdAt: -1,
-    });
-
-    return NextResponse.json(
-      {
-        message: "Appointment Updated",
-        appointments,
-      },
-      {
-        status: 200,
-      }
-    );
-  } catch (error) {
-    console.error("DELETE appointment error:", error);
-
-    return NextResponse.json(
-      {
-        message: "Update failed",
-      },
-      {
-        status: 500,
-      }
+      { message: "Appointment booking failed" },
+      { status: 500 }
     );
   }
 }
@@ -228,75 +103,108 @@ export async function PATCH(request: Request) {
 // =======================
 // DELETE APPOINTMENT
 // =======================
-
 export async function DELETE(request: Request) {
   try {
-    await connectDB();
-
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader) {
+    const userId = getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json(
-        {
-          message: "No token provided",
-        },
-        {
-          status: 401,
-        }
+        { message: "No token provided" },
+        { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-    };
+    await connectDB();
 
     const { id } = await request.json();
 
     const appointment = await Appointment.findOne({
       _id: id,
-      userId: decoded.userId,
+      userId,
     });
 
     if (!appointment) {
       return NextResponse.json(
-        {
-          message: "Appointment not found",
-        },
-        {
-          status: 404,
-        }
+        { message: "Appointment not found" },
+        { status: 404 }
       );
     }
 
     await Appointment.findByIdAndDelete(id);
 
     const appointments = await Appointment.find({
-      userId: decoded.userId,
+      userId,
     }).sort({
       createdAt: -1,
     });
 
     return NextResponse.json(
       {
-        message: "Appointment Deleted",
+        message: "Appointment Cancelled Successfully",
         appointments,
       },
-      {
-        status: 200,
-      }
+      { status: 200 }
     );
   } catch (error) {
-    console.error("PUT appointment error:", error);
+    console.error("DELETE appointment error:", error);
+    return NextResponse.json(
+      { message: "Cancellation failed" },
+      { status: 500 }
+    );
+  }
+}
+
+// =======================
+// UPDATE APPOINTMENT STATUS (PATCH)
+// =======================
+export async function PATCH(request: Request) {
+  try {
+    const userId = getAuthUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { message: "No token provided" },
+        { status: 401 }
+      );
+    }
+
+    await connectDB();
+
+    const { id, status } = await request.json();
+
+    const appointment = await Appointment.findOne({
+      _id: id,
+      userId,
+    });
+
+    if (!appointment) {
+      return NextResponse.json(
+        { message: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
+    if (status) {
+      appointment.status = status;
+      await appointment.save();
+    }
+
+    const appointments = await Appointment.find({
+      userId,
+    }).sort({
+      createdAt: -1,
+    });
 
     return NextResponse.json(
       {
-        message: "Delete failed",
+        message: "Appointment Updated Successfully",
+        appointments,
       },
-      {
-        status: 500,
-      }
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("PATCH appointment error:", error);
+    return NextResponse.json(
+      { message: "Update failed" },
+      { status: 500 }
     );
   }
 }

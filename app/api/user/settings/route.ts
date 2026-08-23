@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-
-const JWT_SECRET = process.env.JWT_SECRET!;
+import { getAuthUserId } from "@/lib/jwtHelper";
 
 export async function PUT(request: Request) {
   try {
-    await connectDB();
-
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
+    const userId = getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json(
-        { message: "No token provided" },
+        { message: "No token provided or invalid token" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded: any = jwt.verify(token, JWT_SECRET);
+    await connectDB();
 
     const body = await request.json();
     const { language } = body;
@@ -31,7 +26,7 @@ export async function PUT(request: Request) {
     }
 
     const updatedUser = await User.findByIdAndUpdate(
-      decoded.userId,
+      userId,
       {
         $set: {
           "settings.language": language,

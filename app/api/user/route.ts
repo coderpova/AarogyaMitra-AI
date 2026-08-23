@@ -1,171 +1,77 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-
+import { getAuthUserId } from "@/lib/jwtHelper";
 
 // ================= GET USER =================
-
 export async function GET(request: Request) {
-
   try {
-
-    await connectDB();
-
-
-    const authHeader = request.headers.get("authorization");
-    const cookieToken = (request as any).cookies?.get?.("token")?.value;
-    const token = authHeader ? authHeader.split(" ")[1] : cookieToken;
-
-    if (!token) {
+    const userId = getAuthUserId(request);
+    if (!userId) {
       return NextResponse.json(
-        { message: "No token provided" },
+        { message: "No token provided or invalid token" },
         { status: 401 }
       );
     }
 
-    const decoded: any = jwt.verify(
-      token,
-      process.env.JWT_SECRET!
-    );
-
-
-    const user = await User.findById(
-      decoded.userId
-    ).select("-password");
-
-
-    if (!user) {
-
-      return NextResponse.json(
-        {
-          message:"User not found"
-        },
-        {
-          status:404
-        }
-      );
-
-    }
-
-
-    return NextResponse.json(
-      {
-        user
-      },
-      {
-        status:200
-      }
-    );
-
-
-  } catch(error) {
-
-
-    console.log(error);
-
-
-    return NextResponse.json(
-      {
-        message:"Invalid token"
-      },
-      {
-        status:401
-      }
-    );
-
-  }
-
-}
-
-
-
-
-
-// ================= UPDATE PROFILE =================
-
-
-export async function PUT(request: Request) {
-
-
-  try {
-
-
     await connectDB();
 
-
-    const authHeader = request.headers.get("authorization");
-
-
-    if (!authHeader) {
-
+    const user = await User.findById(userId).select("-password");
+    if (!user) {
       return NextResponse.json(
-        {
-          message:"No token provided"
-        },
-        {
-          status:401
-        }
+        { message: "User not found" },
+        { status: 404 }
       );
-
     }
 
-
-
-    const token = authHeader.split(" ")[1];
-
-
-    const decoded:any = jwt.verify(
-      token,
-      process.env.JWT_SECRET!
+    return NextResponse.json({ user }, { status: 200 });
+  } catch (error) {
+    console.error("GET /api/user error:", error);
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
     );
+  }
+}
 
+// ================= UPDATE PROFILE =================
+export async function PUT(request: Request) {
+  try {
+    const userId = getAuthUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { message: "No token provided or invalid token" },
+        { status: 401 }
+      );
+    }
 
+    await connectDB();
 
     const body = await request.json();
 
     const updatedUser = await User.findByIdAndUpdate(
-      decoded.userId,
+      userId,
       {
-        $set:{
-          "profile.age": Number(body.age),
+        $set: {
+          "profile.age": body.age !== undefined ? Number(body.age) : undefined,
           "profile.gender": body.gender,
           "profile.bloodGroup": body.bloodGroup,
           "profile.phone": body.phone,
-          "profile.address": body.address
-        }
+          "profile.address": body.address,
+        },
       },
-      {
-        new:true
-      }
+      { new: true }
     ).select("-password");
 
     return NextResponse.json(
-      {
-        message:"Profile updated successfully",
-        user:updatedUser
-      },
-      {
-        status:200
-      }
+      { message: "Profile updated successfully", user: updatedUser },
+      { status: 200 }
     );
-
-  } catch(error) {
+  } catch (error) {
     console.error("User profile update error:", error);
-
-
     return NextResponse.json(
-
-      {
-        message:"Internal Server Error"
-      },
-
-      {
-        status:500
-      }
-
+      { message: "Internal Server Error" },
+      { status: 500 }
     );
-
   }
-
 }

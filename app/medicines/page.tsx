@@ -180,15 +180,7 @@ export default function MedicinesPage() {
   }, [refreshSchedules]);
 
   useEffect(() => {
-    if (isOnline) {
-      fetchMedicines();
-    }
-  }, [isOnline, fetchMedicines]);
-
-  useEffect(() => {
-    setTimeout(() => {
-      fetchMedicines();
-    }, 0);
+    fetchMedicines();
   }, [fetchMedicines]);
 
   const resetForm = () => {

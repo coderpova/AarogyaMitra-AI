@@ -50,6 +50,42 @@ export function stripActionTags(text: string): string {
     .trim();
 }
 
+export function detectLanguageStyle(text: string): "hinglish" | "hindi_devanagari" | "english" {
+  if (!text) return "english";
+  
+  if (/[\u0900-\u097F]/.test(text)) {
+    return "hindi_devanagari";
+  }
+
+  const lower = text.toLowerCase();
+  const hinglishTokens = [
+    "mne", "maine", "piya", "paani", "pani", "kitna", "kitni", "aaj", "ajj", "kal", "kl",
+    "isko", "save kr", "save karo", "save kar", "tha", "thi", "the", "hai", "hu", "hoon",
+    "kya", "batao", "bataen", "mera", "meri", "mere", "gilas", "gilaas", "karna", "krlo",
+    "karlo", "do", "dena", "ho", "gaya", "gayi", "kuch"
+  ];
+
+  const words = lower.split(/\s+/);
+  const hasHinglish = words.some((w) => hinglishTokens.includes(w)) || hinglishTokens.some((t) => lower.includes(t));
+  if (hasHinglish) {
+    return "hinglish";
+  }
+
+  return "english";
+}
+
+export function getTargetDateRange(target: "today" | "yesterday") {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (target === "yesterday") {
+    start.setDate(start.getDate() - 1);
+  }
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
+
 /**
  * Executes appointment booking against real MongoDB database and verifies creation.
  */
@@ -423,82 +459,185 @@ export async function handleChatAction(
     }
   }
 
-  // 6. HYDRATION & WATER LOGGING
-  const isHydrationLog = /\b(drank|drank water|drank \d+|logged water|water intake)\b/i.test(query) && /\b(\d+\.?\d*)\s*(litres|litre|liter|liters|l|ml)\b/i.test(query);
-  if (isHydrationLog) {
-    const match = query.match(/(\d+\.?\d*)\s*(litres|litre|liter|liters|l|ml)/i);
-    if (match) {
-      let val = parseFloat(match[1]);
-      const unit = match[2].toLowerCase();
-      if (unit === "ml") {
-        val = val / 1000; // convert to L
+  // 6. HYDRATION & WATER LOGGING / READING ENGINE
+  const langStyle = detectLanguageStyle(userMessage);
+  const isHydrationMention = /\b(water|pani|paani|पानी|glass|glasses|gilas|gilaas|गिलास|litre|litres|liter|liters|l|ml)\b/i.test(query);
+
+  // A. HYDRATION WRITE INTENT (e.g. "ajj mne 2 glass pani piya isko save kr lo", "I drank 500 ml water today", "आज मैंने 2 गिलास पानी पिया")
+  const isHydrationWrite = isHydrationMention && /\b(drank|piya|logged|save|save kr|save karo|record|drink|पिया|दर्ज)\b/i.test(query);
+  
+  if (isHydrationWrite) {
+    const numMatch = query.match(/(\d+\.?\d*)\s*(glass|glasses|gilas|gilaas|गिलास|litres|litre|liter|liters|l|ml)?/i);
+    
+    if (!numMatch || !numMatch[1]) {
+      let promptMsg = "How much water did you drink? Please specify the quantity (e.g. '2 glasses' or '500 ml').";
+      if (langStyle === "hinglish") {
+        promptMsg = "Aapne kitna paani piya? Kripya quantity bataayein (jaise: '2 glass pani').";
+      } else if (langStyle === "hindi_devanagari") {
+        promptMsg = "आपने कितना पानी पिया? कृपया मात्रा बताएं (जैसे: '2 गिलास पानी')।";
       }
 
-      try {
-        const event = await HealthEvent.create({
-          userId,
-          type: "vital_log",
-          symptom: "Hydration",
-          value: `${val.toFixed(1)} L`,
-          source: "USER_REPORTED",
-          isDeleted: false,
-        });
+      return {
+        handled: true,
+        success: true,
+        reply: promptMsg,
+      };
+    }
 
-        const verified = await HealthEvent.findById(event._id);
-        if (!verified) {
-          return {
-            handled: true,
-            success: false,
-            reply: `❌ Could not log water intake. Database verification failed.`,
-          };
+    const numVal = parseFloat(numMatch[1]);
+    const rawUnit = (numMatch[2] || "").toLowerCase();
+    
+    let formattedValue = `${numVal} glasses`;
+    if (rawUnit.includes("ml")) {
+      formattedValue = `${numVal} ml`;
+    } else if (rawUnit.includes("l") || rawUnit.includes("liter") || rawUnit.includes("litre")) {
+      formattedValue = `${numVal.toFixed(1)} L`;
+    } else if (rawUnit.includes("glass") || rawUnit.includes("gilas") || rawUnit.includes("गिलास")) {
+      formattedValue = numVal === 1 ? "1 glass" : `${numVal} glasses`;
+    }
+
+    const isYesterday = /\b(kal|kl|yesterday|कल)\b/i.test(query);
+    const targetDate = isYesterday ? "yesterday" : "today";
+    const dateRange = getTargetDateRange(targetDate);
+
+    try {
+      // Execute verified DB write
+      const event = await HealthEvent.create({
+        userId,
+        type: "vital_log",
+        symptom: "Hydration",
+        value: formattedValue,
+        source: "USER_REPORTED",
+        isDeleted: false,
+        createdAt: targetDate === "yesterday" ? dateRange.start : new Date(),
+      });
+
+      // Verification check
+      const verified = await HealthEvent.findById(event._id);
+      if (!verified) {
+        let errReply = "❌ Could not log water intake. Database write verification failed.";
+        if (langStyle === "hinglish") {
+          errReply = "❌ Main aapka hydration record save nahi kar paaya. Database save fail ho gaya.";
+        } else if (langStyle === "hindi_devanagari") {
+          errReply = "❌ मैं आपका पानी का रिकॉर्ड दर्ज नहीं कर पाया। डेटाबेस सेव असफल रहा।";
         }
-
-        return {
-          handled: true,
-          success: true,
-          action: "LOG_WATER",
-          reply: `✅ **Logged ${val.toFixed(1)} L of water for today.**\n\nKeep staying hydrated! Your daily health log has been updated.\n\n[SUGGESTED_REPLIES]How much water did I drink today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
-        };
-      } catch (err) {
-        console.error("Hydration log error:", err);
         return {
           handled: true,
           success: false,
-          reply: `❌ Failed to log water intake due to server error.`,
+          reply: errReply,
         };
       }
+
+      // Language-consistent success response
+      let successReply = `✅ **Logged ${formattedValue} of water.**`;
+      if (langStyle === "hinglish") {
+        successReply = `Aapka **${formattedValue}** paani ${targetDate === "yesterday" ? "kal" : "aaj"} ke hydration log mein save ho gaya hai. Keep staying hydrated!`;
+      } else if (langStyle === "hindi_devanagari") {
+        successReply = `आपका **${formattedValue}** पानी ${targetDate === "yesterday" ? "कल" : "आज"} के हाइड्रेशन लॉग में दर्ज कर लिया गया है।`;
+      }
+
+      return {
+        handled: true,
+        success: true,
+        action: "LOG_WATER",
+        reply: `${successReply}\n\n[SUGGESTED_REPLIES]${targetDate === "yesterday" ? "Kal maine kitna pani piya?" : "Aaj maine kitna pani piya?"}|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+      };
+    } catch (err) {
+      console.error("Hydration write error:", err);
+      let failMsg = "❌ Failed to log water intake due to server error.";
+      if (langStyle === "hinglish") failMsg = "❌ Server error ki wajah se paani log nahi ho paaya.";
+      else if (langStyle === "hindi_devanagari") failMsg = "❌ सर्वर त्रुटि के कारण पानी का रिकॉर्ड दर्ज नहीं हो सका।";
+      return {
+        handled: true,
+        success: false,
+        reply: failMsg,
+      };
     }
   }
 
-  // HYDRATION QUERY ("How much water did I drink today?")
-  if (query.includes("how much water did i drink") || query.includes("water intake today") || query.includes("water drank today")) {
+  // B. HYDRATION READ INTENT (e.g. "kl mne kitna pani piya", "kal maine kitna pani piya", "how much water did i drink yesterday", "aaj kitna pani piya")
+  const isHydrationRead = isHydrationMention && /\b(kitna|how much|total|show|query|piya|drank|intake)\b/i.test(query);
+  
+  if (isHydrationRead) {
     try {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      const isYesterday = /\b(kal|kl|yesterday|कल)\b/i.test(query);
+      const targetDate = isYesterday ? "yesterday" : "today";
+      const dateRange = getTargetDateRange(targetDate);
 
       const logs = await HealthEvent.find({
         userId,
         type: "vital_log",
         symptom: "Hydration",
         isDeleted: false,
-        createdAt: { $gte: todayStart },
+        createdAt: { $gte: dateRange.start, $lt: dateRange.end },
       });
 
+      if (logs.length === 0) {
+        let noDataMsg = `No hydration record found for ${targetDate}.`;
+        if (langStyle === "hinglish") {
+          noDataMsg = `${targetDate === "yesterday" ? "Kal" : "Aaj"} ka koi hydration record nahi mila.`;
+        } else if (langStyle === "hindi_devanagari") {
+          noDataMsg = `${targetDate === "yesterday" ? "कल" : "आज"} का कोई पानी का रिकॉर्ड नहीं मिला।`;
+        }
+        return {
+          handled: true,
+          success: true,
+          reply: `💧 ${noDataMsg}`,
+        };
+      }
+
+      // Aggregate entries by unit
+      let totalGlasses = 0;
       let totalLitres = 0;
+      let totalMl = 0;
+      const otherUnits: string[] = [];
+
       logs.forEach((log) => {
-        const num = parseFloat(log.value || "0");
-        if (!isNaN(num)) totalLitres += num;
+        const valStr = (log.value || "").trim();
+        const m = valStr.match(/(\d+\.?\d*)\s*(glass|glasses|l|litres|litre|liter|liters|ml)?/i);
+        if (m) {
+          const num = parseFloat(m[1]);
+          const unit = (m[2] || "").toLowerCase();
+          if (unit.includes("glass")) {
+            totalGlasses += num;
+          } else if (unit === "ml") {
+            totalMl += num;
+          } else if (unit === "l" || unit.includes("liter") || unit.includes("litre")) {
+            totalLitres += num;
+          } else {
+            otherUnits.push(valStr);
+          }
+        }
       });
+
+      const summaryParts: string[] = [];
+      if (totalGlasses > 0) summaryParts.push(`${totalGlasses} ${totalGlasses === 1 ? "glass" : "glasses"}`);
+      if (totalLitres > 0) summaryParts.push(`${totalLitres.toFixed(1)} L`);
+      if (totalMl > 0) summaryParts.push(`${totalMl} ml`);
+      otherUnits.forEach((u) => summaryParts.push(u));
+
+      const summaryStr = summaryParts.join(" and ") || "0 L";
+
+      let readReply = `💧 Yesterday you logged **${summaryStr}** of water.`;
+      if (targetDate === "today") readReply = `💧 Today you have logged **${summaryStr}** of water.`;
+
+      if (langStyle === "hinglish") {
+        readReply = targetDate === "yesterday"
+          ? `💧 Kal aapne **${summaryStr}** paani piya tha.`
+          : `💧 Aaj aapne **${summaryStr}** paani log kiya hai.`;
+      } else if (langStyle === "hindi_devanagari") {
+        readReply = targetDate === "yesterday"
+          ? `💧 कल आपने **${summaryStr}** पानी पिया था।`
+          : `💧 आज आपने **${summaryStr}** पानी का रिकॉर्ड दर्ज किया है।`;
+      }
 
       return {
         handled: true,
         success: true,
-        reply: totalLitres > 0
-          ? `💧 You have logged **${totalLitres.toFixed(1)} L** of water today.`
-          : `💧 You haven't logged any water intake today. Tell me e.g. "I drank 2 litres of water today" to record it.`,
+        reply: readReply,
       };
     } catch (err) {
-      console.error("Hydration query error:", err);
+      console.error("Hydration read error:", err);
     }
   }
 

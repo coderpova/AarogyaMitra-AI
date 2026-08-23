@@ -7,7 +7,7 @@ import Chat from "@/models/chat";
 import User from "@/models/User";
 import { getAIContext } from "@/lib/aiContext";
 import { detectEmergency, buildDoctorSystemPrompt, parseSuggestedReplies } from "@/lib/healthAssistant";
-import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital, handleChatAction } from "@/lib/chatActions";
+import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital, handleChatAction, detectLanguageStyle } from "@/lib/chatActions";
 import { isMedicalQuery, retrieveKnowledge, resolveContextualQuery } from "@/lib/ragService";
 import { validateMedicalSafety } from "@/lib/safetyValidator";
 import { resolvePersonalHealthContext } from "@/lib/personalHealthContext";
@@ -199,13 +199,21 @@ export async function POST(req: Request) {
     }
 
     // ── BUILD DOCTOR SYSTEM PROMPT ─────────────────────────────────────────────
+    const langStyle = detectLanguageStyle(message);
+    let langInstruction = "";
+    if (langStyle === "hinglish") {
+      langInstruction = "\n\nCRITICAL LANGUAGE RULE: The user is writing in Hinglish (Hindi written in Roman script e.g. 'kl mne kitna pani piya'). You MUST respond in natural, clear Hinglish matching the user's communication style. Do NOT respond in plain English.";
+    } else if (langStyle === "hindi_devanagari") {
+      langInstruction = "\n\nCRITICAL LANGUAGE RULE: The user is writing in Hindi (Devanagari script). You MUST respond in Hindi (Devanagari script).";
+    }
+
     const systemPrompt = buildDoctorSystemPrompt(
       selectedLang,
       "",
       reportContext,
       knowledgeContext,
       personalContextText
-    );
+    ) + langInstruction;
 
     // Build messages array with conversation history
     const messages: Array<{ role: string; content: string }> = [

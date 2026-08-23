@@ -79,13 +79,36 @@ export function calculateBMIMetric(heightCm: number, weightKg: number) {
 }
 
 /**
+ * Helper to extract height (cm) and weight (kg) from a text string.
+ */
+function extractHeightWeight(text: string): { height?: number; weight?: number } {
+  let height: number | undefined;
+  let weight: number | undefined;
+
+  const cmMatch = text.match(/(\d{2,3})\s*cm/i);
+  if (cmMatch) {
+    const val = parseInt(cmMatch[1]);
+    if (val >= 50 && val <= 250) height = val;
+  }
+
+  const kgMatch = text.match(/(\d{2,3})\s*kg/i);
+  if (kgMatch) {
+    const val = parseInt(kgMatch[1]);
+    if (val >= 20 && val <= 300) weight = val;
+  }
+
+  return { height, weight };
+}
+
+/**
  * Core Action Handler for Chat Requests.
  * Scoped strictly to authenticated userId.
  */
 export async function handleChatAction(
   userId: string,
   userMessage: string,
-  userProfileData?: any
+  userProfileData?: any,
+  history?: Array<{ role: string; text?: string; content?: string }>
 ): Promise<ActionResult> {
   if (!userId) {
     return { handled: false };
@@ -100,7 +123,183 @@ export async function handleChatAction(
     user = await User.findById(userId).select("-password");
   }
 
-  // 1. BMI INTENT DETECTOR & CALCULATOR
+  // 1. CANCEL / DON'T SAVE INTENT
+  if (
+    query === "don't save that" ||
+    query === "dont save that" ||
+    query === "don't save" ||
+    query === "dont save" ||
+    query === "cancel save" ||
+    query.startsWith("no, don't save")
+  ) {
+    return {
+      handled: true,
+      reply: `Understood. No changes were made to your health profile.`,
+    };
+  }
+
+  // 2. QUERY HEIGHT / WEIGHT DIRECTLY
+  if (query === "what is my height" || query === "what is my height?" || query === "my height?") {
+    const h = user?.profile?.height;
+    if (h) {
+      return {
+        handled: true,
+        reply: `Your registered height is **${h} cm** in your health profile.`,
+      };
+    } else {
+      return {
+        handled: true,
+        reply: `You haven't set your height in your profile yet. Tell me your height (e.g., "170 cm") to save it.`,
+      };
+    }
+  }
+
+  if (query === "what is my weight" || query === "what is my weight?" || query === "my weight?") {
+    const w = user?.profile?.weight;
+    if (w) {
+      return {
+        handled: true,
+        reply: `Your registered weight is **${w} kg** in your health profile.`,
+      };
+    } else {
+      return {
+        handled: true,
+        reply: `You haven't set your weight in your profile yet. Tell me your weight (e.g., "68 kg") to save it.`,
+      };
+    }
+  }
+
+  // 3. EXPLICIT SAVE INTENT ("save it", "save this", "save my height and weight", "save to my profile")
+  const isExplicitSave =
+    /\b(save it|save this|save my height|save my weight|save my profile|save to profile|save details|save metrics|save height and weight)\b/i.test(
+      query
+    );
+
+  if (isExplicitSave) {
+    // Look for height/weight in userMessage or recent conversation turns (last 4 turns)
+    const historyText = (history || [])
+      .slice(-4)
+      .map((m) => m.text || m.content || "")
+      .join(" ");
+    const combinedWindow = `${historyText} ${userMessage}`;
+    const extracted = extractHeightWeight(combinedWindow);
+
+    const targetHeight = extracted.height || user?.profile?.height;
+    const targetWeight = extracted.weight || user?.profile?.weight;
+
+    if (targetHeight && targetWeight) {
+      try {
+        user = user || (await User.findById(userId));
+        if (user) {
+          user.profile = user.profile || {};
+          user.profile.height = targetHeight;
+          user.profile.weight = targetWeight;
+          await user.save();
+        }
+
+        const res = calculateBMIMetric(targetHeight, targetWeight);
+        return {
+          handled: true,
+          reply: `Saved. Your height (**${targetHeight} cm**) and weight (**${targetWeight} kg**) have been added to your health profile.\n\n📊 **Your BMI Calculation Result**\n\n- **Height:** ${targetHeight} cm\n- **Weight:** ${targetWeight} kg\n- **BMI Value:** **${res?.bmi} kg/m²**\n- **Category:** **${res?.category}**\n\n[SUGGESTED_REPLIES]Tell me my BMI|Show my health profile|Go to Dashboard[/SUGGESTED_REPLIES]`,
+          uiCard: res ? { type: "bmi", data: res } : undefined,
+        };
+      } catch (err) {
+        console.error("Health profile save error:", err);
+        return {
+          handled: true,
+          reply: `I couldn't save your height and weight right now. Nothing was changed.`,
+        };
+      }
+    } else if (targetHeight && !targetWeight) {
+      try {
+        user = user || (await User.findById(userId));
+        if (user) {
+          user.profile = user.profile || {};
+          user.profile.height = targetHeight;
+          await user.save();
+        }
+        return {
+          handled: true,
+          reply: `Saved. Your height (**${targetHeight} cm**) has been updated in your profile. What is your weight in kg?`,
+        };
+      } catch (err) {
+        return {
+          handled: true,
+          reply: `I couldn't save your height right now. Nothing was changed.`,
+        };
+      }
+    } else if (!targetHeight && targetWeight) {
+      try {
+        user = user || (await User.findById(userId));
+        if (user) {
+          user.profile = user.profile || {};
+          user.profile.weight = targetWeight;
+          await user.save();
+        }
+        return {
+          handled: true,
+          reply: `Saved. Your weight (**${targetWeight} kg**) has been updated in your profile. What is your height in cm?`,
+        };
+      } catch (err) {
+        return {
+          handled: true,
+          reply: `I couldn't save your weight right now. Nothing was changed.`,
+        };
+      }
+    } else {
+      return {
+        handled: true,
+        reply: `What height (in cm) and weight (in kg) would you like me to save to your health profile?`,
+      };
+    }
+  }
+
+  // 4. DIRECT UPDATE INTENT ("change my weight to 70 kg", "update my height to 175 cm", "my weight is 70 kg")
+  const isDirectUpdate =
+    /\b(change|update|set|my weight is|my height is)\b/i.test(query) &&
+    /(\d{2,3}\s*cm|\d{2,3}\s*kg)/i.test(query);
+
+  if (isDirectUpdate) {
+    const extracted = extractHeightWeight(query);
+    if (extracted.height || extracted.weight) {
+      try {
+        user = user || (await User.findById(userId));
+        if (user) {
+          user.profile = user.profile || {};
+          if (extracted.height) user.profile.height = extracted.height;
+          if (extracted.weight) user.profile.weight = extracted.weight;
+          await user.save();
+        }
+
+        const h = user?.profile?.height;
+        const w = user?.profile?.weight;
+        const res = h && w ? calculateBMIMetric(h, w) : null;
+
+        let msg = "Saved.";
+        if (extracted.height && extracted.weight) {
+          msg += ` Your height (**${extracted.height} cm**) and weight (**${extracted.weight} kg**) have been updated in your health profile.`;
+        } else if (extracted.height) {
+          msg += ` Your height has been updated to **${extracted.height} cm** in your health profile.`;
+        } else if (extracted.weight) {
+          msg += ` Your weight has been updated to **${extracted.weight} kg** in your health profile.`;
+        }
+
+        return {
+          handled: true,
+          reply: `${msg}\n\n[SUGGESTED_REPLIES]Tell me my BMI|Show my health profile|Go to Dashboard[/SUGGESTED_REPLIES]`,
+          uiCard: res ? { type: "bmi", data: res } : undefined,
+        };
+      } catch (err) {
+        console.error("Health profile update error:", err);
+        return {
+          handled: true,
+          reply: `I couldn't update your health profile right now. Nothing was changed.`,
+        };
+      }
+    }
+  }
+
+  // 5. BMI INTENT DETECTOR & CALCULATOR
   if (
     query.includes("bmi") ||
     query.includes("body mass index") ||
@@ -141,37 +340,34 @@ export async function handleChatAction(
   }
 
   // Explicit Height/Weight Input in Query (e.g. "I am 170 cm and 65 kg")
-  const heightWeightMatch = query.match(/(?:height|tall)?\s*(\d{2,3})\s*cm.*?(?:weight|weigh)?\s*(\d{2,3})\s*kg/i) ||
-                            query.match(/(\d{2,3})\s*kg.*?(\d{2,3})\s*cm/i);
-  if (heightWeightMatch && (query.includes("bmi") || query.includes("calculate"))) {
-    let h = 0, w = 0;
-    if (query.indexOf("cm") < query.indexOf("kg")) {
-      h = parseInt(heightWeightMatch[1]);
-      w = parseInt(heightWeightMatch[2]);
-    } else {
-      w = parseInt(heightWeightMatch[1]);
-      h = parseInt(heightWeightMatch[2]);
-    }
+  const extractedQueryHW = extractHeightWeight(query);
+  if (extractedQueryHW.height && extractedQueryHW.weight) {
+    const h = extractedQueryHW.height;
+    const w = extractedQueryHW.weight;
+    const res = calculateBMIMetric(h, w);
 
-    if (h > 50 && h < 250 && w > 20 && w < 300) {
-      const res = calculateBMIMetric(h, w);
-      if (res) {
+    if (res) {
+      try {
+        user = user || (await User.findById(userId));
         if (user) {
           user.profile = user.profile || {};
           user.profile.height = h;
           user.profile.weight = w;
           await user.save();
         }
-        return {
-          handled: true,
-          reply: `📊 **Your BMI Calculation Result**\n\n- **Height:** ${res.heightCm} cm\n- **Weight:** ${res.weightKg} kg\n- **BMI Value:** **${res.bmi} kg/m²**\n- **Category:** **${res.category}**\n\n*Saved to your profile!*\n\n[SUGGESTED_REPLIES]How to maintain normal BMI|Diet tips for my BMI|Check health profile[/SUGGESTED_REPLIES]`,
-          uiCard: { type: "bmi", data: res },
-        };
+      } catch (saveErr) {
+        console.error("Auto profile save error:", saveErr);
       }
+
+      return {
+        handled: true,
+        reply: `Saved. Your height (**${h} cm**) and weight (**${w} kg**) have been added to your health profile.\n\n📊 **Your BMI Calculation Result**\n\n- **Height:** ${res.heightCm} cm\n- **Weight:** ${res.weightKg} kg\n- **BMI Value:** **${res.bmi} kg/m²**\n- **Category:** **${res.category}**\n\n[SUGGESTED_REPLIES]Tell me my BMI|Save to profile|Check health profile[/SUGGESTED_REPLIES]`,
+        uiCard: { type: "bmi", data: res },
+      };
     }
   }
 
-  // 2. LIST MEDICINES / REMINDERS INTENT
+  // 6. LIST MEDICINES / REMINDERS INTENT
   if (
     query.includes("show my medicines") ||
     query.includes("show my medicine reminders") ||
@@ -208,7 +404,7 @@ export async function handleChatAction(
     };
   }
 
-  // 3. DELETE MEDICINE REMINDER INTENT
+  // 7. DELETE MEDICINE REMINDER INTENT
   if (query.includes("delete") && (query.includes("medicine") || query.includes("reminder") || query.includes("dawa"))) {
     const medicines = await Medicine.find({ userId });
     if (!medicines || medicines.length === 0) {
@@ -240,7 +436,7 @@ export async function handleChatAction(
     }
   }
 
-  // 4. LIST APPOINTMENTS INTENT
+  // 8. LIST APPOINTMENTS INTENT
   if (
     query.includes("show my appointments") ||
     query.includes("my appointments") ||
@@ -275,7 +471,7 @@ export async function handleChatAction(
     };
   }
 
-  // 5. REPORT SUMMARY INTENT
+  // 9. REPORT SUMMARY INTENT
   if (
     query.includes("latest report") ||
     query.includes("recent report") ||

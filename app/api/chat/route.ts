@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     if (authenticatedUserId) {
       try {
         const dbUserForAction = await User.findById(authenticatedUserId);
-        const actionResult = await handleChatAction(authenticatedUserId, message, dbUserForAction);
+        const actionResult = await handleChatAction(authenticatedUserId, message, dbUserForAction, history);
         if (actionResult.handled && actionResult.reply) {
           try {
             await Chat.create({

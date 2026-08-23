@@ -2,8 +2,11 @@
   {
     "id": 1,
     "name": "Ayushman Bharat PM-JAY",
-    "description": "Provides cashless health insurance for eligible families.",
-    "benefit": "Health insurance up to ₹5,00,000 per family per year.",
+    "description": "Provides cashless health insurance for eligible low-income families across India.",
+    "benefit": "Health insurance coverage up to ₹5,00,000 per family per year for secondary and tertiary care hospitalization.",
+    "category": "Healthcare",
+    "state": "All India",
+    "tags": ["health", "insurance", "hospital", "medical", "cashless", "treatment"],
     "documents": [
       "Aadhaar Card",
       "Ration Card",
@@ -22,11 +25,14 @@
   {
     "id": 2,
     "name": "Janani Suraksha Yojana (JSY)",
-    "description": "Promotes institutional delivery for pregnant women.",
-    "benefit": "Financial assistance for safe institutional delivery.",
+    "description": "Safe motherhood intervention under the National Health Mission encouraging institutional delivery among pregnant women.",
+    "benefit": "Direct cash assistance up to ₹1,400 for institutional delivery and post-natal care.",
+    "category": "Women & Child",
+    "state": "All India",
+    "tags": ["women", "pregnant", "maternal", "delivery", "mother", "child"],
     "documents": [
       "Aadhaar Card",
-      "Pregnancy Registration",
+      "Pregnancy Registration (MCP Card)",
       "Bank Passbook"
     ],
     "officialLink": "https://nhm.gov.in",
@@ -38,8 +44,11 @@
   {
     "id": 3,
     "name": "Janani Shishu Suraksha Karyakram (JSSK)",
-    "description": "Free delivery and newborn care services.",
-    "benefit": "Free medicines, diagnostics, food and transport.",
+    "description": "Free healthcare services for pregnant women and sick newborns in public health institutions.",
+    "benefit": "Free delivery, medicines, diagnostics, food during hospital stay, and free transport to and from hospital.",
+    "category": "Women & Child",
+    "state": "All India",
+    "tags": ["women", "pregnant", "maternal", "newborn", "free delivery"],
     "documents": [
       "Aadhaar Card",
       "Hospital Registration"
@@ -52,30 +61,186 @@
   },
   {
     "id": 4,
-    "name": "Rashtriya Bal Swasthya Karyakram (RBSK)",
-    "description": "Health screening for children.",
-    "benefit": "Free health screening and early intervention.",
+    "name": "National Means-cum-Merit Scholarship Scheme (NMMSS)",
+    "description": "Scholarship for meritorious students from economically weaker sections to arrest drop-out at class VIII.",
+    "benefit": "Scholarship of ₹12,000 per annum (₹1,000 per month) for secondary school education.",
+    "category": "Education",
+    "state": "All India",
+    "tags": ["student", "scholarship", "education", "school", "merit"],
     "documents": [
-      "Birth Certificate",
-      "Aadhaar (if available)"
+      "School Marksheet",
+      "Income Certificate",
+      "Aadhaar Card",
+      "Bank Account Details"
     ],
-    "officialLink": "https://nhm.gov.in",
+    "officialLink": "https://scholarships.gov.in",
     "eligibility": {
-      "maxAge": 18
+      "minAge": 12,
+      "maxAge": 18,
+      "maxIncome": 350000,
+      "student": true
     }
   },
   {
     "id": 5,
-    "name": "National Programme for Health Care of the Elderly (NPHCE)",
-    "description": "Healthcare support for senior citizens.",
-    "benefit": "Free geriatric care and regular health check-ups.",
+    "name": "Post-Matric Scholarship for SC/ST/OBC Students",
+    "description": "Financial assistance to students belonging to reserved categories for pursuing higher studies.",
+    "benefit": "Full tuition fee reimbursement and monthly maintenance allowance for diploma, degree, and postgraduate courses.",
+    "category": "Education",
+    "state": "All India",
+    "tags": ["student", "scholarship", "education", "college", "university", "higher study"],
     "documents": [
-      "Age Proof",
+      "Caste Certificate",
+      "Income Certificate",
+      "College Admission Receipt",
       "Aadhaar Card"
+    ],
+    "officialLink": "https://scholarships.gov.in",
+    "eligibility": {
+      "minAge": 15,
+      "maxAge": 30,
+      "maxIncome": 250000,
+      "student": true
+    }
+  },
+  {
+    "id": 6,
+    "name": "UP Scholarship & Fee Reimbursement Scheme",
+    "description": "State scholarship for Pre-Matric and Post-Matric students residing in Uttar Pradesh.",
+    "benefit": "Financial aid and complete course fee reimbursement for school and college students in Uttar Pradesh.",
+    "category": "Education",
+    "state": "Uttar Pradesh",
+    "tags": ["uttar pradesh", "up", "student", "scholarship", "education", "school", "college"],
+    "documents": [
+      "UP Domicile Certificate",
+      "Income Certificate",
+      "Caste Certificate",
+      "Aadhaar Card",
+      "Fee Receipt"
+    ],
+    "officialLink": "https://scholarship.up.gov.in",
+    "eligibility": {
+      "minAge": 10,
+      "maxAge": 30,
+      "maxIncome": 200000,
+      "student": true
+    }
+  },
+  {
+    "id": 7,
+    "name": "National Programme for Health Care of the Elderly (NPHCE)",
+    "description": "Dedicated healthcare and wellness support system for senior citizens at primary and district levels.",
+    "benefit": "Free geriatric care, specialized health check-ups, free medicines, and dedicated senior citizen OPD wards.",
+    "category": "Senior Citizen",
+    "state": "All India",
+    "tags": ["senior citizen", "elderly", "old age", "health", "geriatric"],
+    "documents": [
+      "Age Proof (Aadhaar / Voter ID)",
+      "Medical History Records"
     ],
     "officialLink": "https://nhm.gov.in",
     "eligibility": {
-      "minAge": 60
+      "minAge": 60,
+      "seniorCitizen": true
+    }
+  },
+  {
+    "id": 8,
+    "name": "Indira Gandhi National Old Age Pension Scheme (IGNOAPS)",
+    "description": "Monthly pension for senior citizens belonging to below poverty line (BPL) households.",
+    "benefit": "Monthly pension of ₹500 to ₹1,000 credited directly to beneficiary bank account.",
+    "category": "Senior Citizen",
+    "state": "All India",
+    "tags": ["senior citizen", "pension", "elderly", "old age", "bpl", "financial assistance"],
+    "documents": [
+      "Age Proof (60+ years)",
+      "BPL Card / Income Certificate",
+      "Aadhaar Card",
+      "Bank Passbook"
+    ],
+    "officialLink": "https://nsap.nic.in",
+    "eligibility": {
+      "minAge": 60,
+      "maxIncome": 150000,
+      "seniorCitizen": true
+    }
+  },
+  {
+    "id": 9,
+    "name": "PM Kisan Samman Nidhi (PM-KISAN)",
+    "description": "Income support scheme for small and marginal landholding farmer families across India.",
+    "benefit": "Financial benefit of ₹6,000 per year transferred in three equal installments of ₹2,000 directly to bank accounts.",
+    "category": "Farmers",
+    "state": "All India",
+    "tags": ["farmer", "farmers", "kisan", "agriculture", "crop", "land"],
+    "documents": [
+      "Landholding Ownership Papers (Khasra/Khatauni)",
+      "Aadhaar Card",
+      "Bank Account Details"
+    ],
+    "officialLink": "https://pmkisan.gov.in",
+    "eligibility": {
+      "farmer": true
+    }
+  },
+  {
+    "id": 10,
+    "name": "Pradhan Mantri Awas Yojana (PMAY - Urban & Gramin)",
+    "description": "Housing assistance scheme to ensure affordable shelter with basic amenities for low income families.",
+    "benefit": "Interest subsidy up to 6.5% on housing loans or direct construction grant of up to ₹2.5 Lakhs.",
+    "category": "Housing",
+    "state": "All India",
+    "tags": ["housing", "house", "awas", "home", "shelter", "construction"],
+    "documents": [
+      "Aadhaar Card",
+      "Income Certificate",
+      "Property/Land Document",
+      "Bank Passbook"
+    ],
+    "officialLink": "https://pmaymis.gov.in",
+    "eligibility": {
+      "maxIncome": 600000
+    }
+  },
+  {
+    "id": 11,
+    "name": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+    "description": "Skill certification scheme enabling unemployed youth to take up industry-relevant skill training.",
+    "benefit": "Free short-term skill training, government certification, placement assistance, and stipend.",
+    "category": "Employment",
+    "state": "All India",
+    "tags": ["unemployed", "youth", "job", "skill", "employment", "training"],
+    "documents": [
+      "Aadhaar Card",
+      "Educational Qualification Certificate",
+      "Bank Passbook"
+    ],
+    "officialLink": "https://www.pmkvyofficial.org",
+    "eligibility": {
+      "minAge": 18,
+      "maxAge": 45,
+      "unemployed": true
+    }
+  },
+  {
+    "id": 12,
+    "name": "UP Mukhyamantri Yuva Swarozgar Yojana",
+    "description": "Financial assistance and subsidy for educated unemployed youth of Uttar Pradesh to start their own enterprises.",
+    "benefit": "Loan up to ₹25 Lakhs for industry sector and ₹10 Lakhs for service sector with up to 25% margin money grant.",
+    "category": "Employment",
+    "state": "Uttar Pradesh",
+    "tags": ["uttar pradesh", "up", "unemployed", "youth", "employment", "self employment", "business loan"],
+    "documents": [
+      "UP Domicile Certificate",
+      "High School Marksheet",
+      "Project Report",
+      "Aadhaar Card"
+    ],
+    "officialLink": "https://diupmsme.upsdc.gov.in",
+    "eligibility": {
+      "minAge": 18,
+      "maxAge": 40,
+      "unemployed": true
     }
   }
 ]

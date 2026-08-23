@@ -1,8 +1,18 @@
 // frontend/lib/embed.ts
-import { pipeline } from "@xenova/transformers";
+import { pipeline, env } from "@xenova/transformers";
+
+// Configure Transformers.js for WASM/serverless runtime
+env.backends.onnx.wasm.numThreads = 1;
+env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/";
+env.cacheDir = "/tmp/.cache";
 
 let embedPipeline: any = null;
 let embeddingDim: number | null = null;
+let ragFailureCount = 0;
+
+export function getRagFailureMetric(): number {
+  return ragFailureCount;
+}
 
 /**
  * Lazy‑load the embedding pipeline based on the model name in RAG_EMBEDDING_MODEL.
@@ -22,7 +32,9 @@ async function loadPipeline() {
     }
     console.log(`[RAG] Embedding model loaded (${modelName}), dimension = ${embeddingDim}`);
   } catch (e) {
-    console.warn("[RAG] Failed to load embedding model", e);
+    ragFailureCount++;
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.warn(`[RAG] Failed to load embedding model (${modelName}): ${errMsg}`);
     embedPipeline = null;
     embeddingDim = null;
   }
@@ -69,7 +81,9 @@ export async function embed(text: string): Promise<number[] | null> {
     }
     return null;
   } catch (e) {
-    console.warn("[RAG] Embedding generation error", e);
+    ragFailureCount++;
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.warn(`[RAG] Embedding generation error: ${errMsg}`);
     return null;
   }
 }
@@ -80,3 +94,4 @@ export async function embed(text: string): Promise<number[] | null> {
 export function getEmbeddingDimension(): number | null {
   return embeddingDim;
 }
+

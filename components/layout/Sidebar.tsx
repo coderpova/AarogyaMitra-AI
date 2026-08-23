@@ -90,7 +90,7 @@ export default function Sidebar({
       <aside
         className={`
           fixed z-50 top-0 left-0
-          h-screen w-72
+          h-[100dvh] w-72
           bg-gradient-to-b from-blue-700 to-blue-800
           dark:from-gray-950 dark:to-gray-900
           text-white shadow-2xl

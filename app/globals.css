@@ -1,8 +1,28 @@
 @import "tailwindcss";
 
-
 @variant dark (&:where(.dark *));
 
+/* Base HTML & Body Root Layout Frame Settings */
+html {
+  min-height: 100dvh;
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+html.dark {
+  background-color: #030712;
+  color: #f9fafb;
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background-color: inherit;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
 
 /* Smooth Page Animation */
 

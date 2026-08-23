@@ -30,7 +30,8 @@ import {
   Plus,
   Menu,
   MessageSquare,
-  FolderArchive
+  FolderArchive,
+  LayoutDashboard
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -1015,8 +1016,16 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Archived Chats Trigger Button */}
-      <div className="p-3 border-t border-gray-150 dark:border-gray-800 shrink-0">
+      {/* Navigation & Archived Chats Trigger Button */}
+      <div className="p-3 border-t border-gray-150 dark:border-gray-800 shrink-0 space-y-2">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="w-full flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 py-2.5 px-4 rounded-xl text-xs font-bold transition border border-blue-200 dark:border-blue-800"
+        >
+          <LayoutDashboard size={14} className="text-blue-600 dark:text-blue-400" />
+          Go to Main Dashboard
+        </button>
+
         <button
           onClick={() => {
             setIsArchiveModalOpen(true);
@@ -1132,9 +1141,9 @@ export default function ChatPage() {
         >
           <div className="flex items-center gap-2.5 font-sans">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push("/dashboard")}
               className="bg-white/20 p-2 rounded-xl hover:bg-white/30 transition text-white"
-              title="Go Back"
+              title="Go to Dashboard"
             >
               <ArrowLeft size={18} />
             </button>

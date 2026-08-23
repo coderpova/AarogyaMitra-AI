@@ -2,18 +2,6 @@
 import path from "path";
 import { pipeline, env } from "@xenova/transformers";
 
-// Force Transformers.js to select onnxruntime-web (WASM) instead of onnxruntime-node
-if (typeof process !== "undefined" && process.release?.name === "node") {
-  try {
-    Object.defineProperty(process, "release", {
-      value: { ...process.release, name: "web" },
-      configurable: true,
-    });
-  } catch (_err) {
-    // ignore
-  }
-}
-
 // Configure Transformers.js for WASM/serverless runtime
 env.backends.onnx.wasm.numThreads = 1;
 try {

@@ -207,26 +207,7 @@ function GoalRing({ current, goal, label, color, unit }: { current: number; goal
   );
 }
 
-/* ── Mini Bar Chart for health trends ────────────────────────────────────── */
-function MiniBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
-  return (
-    <div className="flex items-end justify-around gap-3 h-32 px-2">
-      {data.map((d, i) => (
-        <div key={i} className="flex flex-col items-center gap-2 flex-1">
-          <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{d.value}</span>
-          <div className="w-full flex justify-center" style={{ height: "80px", alignItems: "flex-end" }}>
-            <div
-              className={`w-8 rounded-t-md transition-all duration-700 ${d.color}`}
-              style={{ height: `${(d.value / maxVal) * 80}px`, minHeight: "4px" }}
-            />
-          </div>
-          <span className="text-[10px] text-gray-400 text-center truncate w-full">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+
 
 /* ── Health Tip Card ─────────────────────────────────────────────────────── */
 function HealthTipCard({ icon, title, tip, color }: { icon: any; title: string; tip: string; color: string }) {
@@ -505,16 +486,6 @@ export default function DashboardPage() {
     });
   });
   timelineEvents.sort((a, b) => b.date.localeCompare(a.date));
-
-  // Build health trends data
-  const trendsData = reports.slice(0, 6).reverse().map((r, i) => {
-    const abnormal = r.parameters?.filter((p: ReportParameter) => p.status !== t("dashboardExt.bmiNormL")).length || 0;
-    return {
-      label: `R${i + 1}`,
-      value: abnormal,
-      color: abnormal >= 3 ? "bg-red-500" : abnormal >= 1 ? "bg-amber-500" : "bg-green-500",
-    };
-  });
 
   return (
     <DashboardLayout>
@@ -814,21 +785,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Row 6: Health Trends */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
-          <h2 className="text-sm font-bold dark:text-white mb-4 flex items-center gap-2">
-            <TrendingUp size={18} className="text-blue-600" /> {t("dashboardExt.trendTitle")}
-          </h2>
-          {trendsData.length >= 2 ? (
-            <MiniBarChart data={trendsData} />
-          ) : (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              <TrendingUp className="mx-auto mb-2 text-gray-300 dark:text-gray-600" size={32} />
-              {t("dashboardExt.trendNeed")}
-            </div>
-          )}
         </div>
 
         {/* Row 7: Quick Stats Summary */}

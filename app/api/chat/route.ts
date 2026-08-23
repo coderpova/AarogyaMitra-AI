@@ -6,8 +6,8 @@ import connectDB from "@/lib/mongodb";
 import Chat from "@/models/chat";
 import User from "@/models/User";
 import { getAIContext } from "@/lib/aiContext";
-import { detectEmergency, buildDoctorSystemPrompt } from "@/lib/healthAssistant";
-import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital } from "@/lib/chatActions";
+import { detectEmergency, buildDoctorSystemPrompt, parseSuggestedReplies } from "@/lib/healthAssistant";
+import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital, handleChatAction } from "@/lib/chatActions";
 import { isMedicalQuery, retrieveKnowledge, resolveContextualQuery } from "@/lib/ragService";
 import { validateMedicalSafety } from "@/lib/safetyValidator";
 import { resolvePersonalHealthContext } from "@/lib/personalHealthContext";
@@ -113,6 +113,35 @@ export async function POST(req: Request) {
       }
     } catch (userErr) {
       console.error("User language lookup fallback:", userErr);
+    }
+
+    // ── ACTION TOOL LAYER (SAFE SERVER-SIDE ACTIONS) ────────────────────────
+    if (authenticatedUserId) {
+      try {
+        const dbUserForAction = await User.findById(authenticatedUserId);
+        const actionResult = await handleChatAction(authenticatedUserId, message, dbUserForAction);
+        if (actionResult.handled && actionResult.reply) {
+          try {
+            await Chat.create({
+              userId: authenticatedUserId,
+              userMessage: message,
+              aiResponse: actionResult.reply,
+              conversationId: conversationId || undefined,
+              title: title || undefined,
+            });
+          } catch (histErr) {
+            console.error("Action chat history save error:", histErr);
+          }
+
+          return NextResponse.json({
+            reply: actionResult.reply,
+            suggestions: parseSuggestedReplies(actionResult.reply),
+            uiCard: actionResult.uiCard,
+          });
+        }
+      } catch (actErr) {
+        console.error("[ActionToolLayer] Action execution error:", actErr);
+      }
     }
 
     // ── AI PERSONAL HEALTH CONTEXT (PHASE 3.5) ──────────────────────────────

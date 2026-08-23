@@ -55,6 +55,10 @@ interface Message {
   emergency?: boolean;
   isStreaming?: boolean;
   actions?: IntegrationAction[];
+  uiCard?: {
+    type: string;
+    data: any;
+  };
 }
 
 interface Conversation {
@@ -715,25 +719,28 @@ export default function ChatPage() {
         if (contentType.includes("application/json")) {
           const data = await res.json();
 
-          const { cleanText, suggestions } = parseSuggestedReplies(data.reply);
+          const { cleanText, suggestions } = parseSuggestedReplies(data.reply || "");
           setMessages((prev) => {
             const updated = [...prev];
             updated[aiMessageIndex] = {
               role: "ai",
               text: cleanText,
               timestamp: now,
-              suggestions,
-              emergency: true,
+              suggestions: data.suggestions || suggestions,
+              emergency: !!data.emergency,
+              uiCard: data.uiCard,
               actions: getIntegrationActions(cleanText),
               isStreaming: false,
             };
             return updated;
           });
-          addNotification(
-            "emergency",
-            "Emergency Symptom Alert",
-            "Urgent symptoms detected. Review emergency care details immediately."
-          );
+          if (data.emergency) {
+            addNotification(
+              "emergency",
+              "Emergency Symptom Alert",
+              "Urgent symptoms detected. Review emergency care details immediately."
+            );
+          }
           if (!suppressHistory) setTimeout(() => loadHistory(targetConvoId), 500);
         } else {
           const reader = res.body!.getReader();
@@ -1264,6 +1271,36 @@ export default function ChatPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* ACTION UI CARDS */}
+                    {isAi && msg.uiCard && !msg.isStreaming && (
+                      <div className="mt-3 w-full bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 shadow-sm text-xs sm:text-sm">
+                        {msg.uiCard.type === "bmi" && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2 font-semibold text-blue-700 dark:text-blue-400">
+                              <span>📊 BMI Metric Summary</span>
+                              <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+                                {msg.uiCard.data.category}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800">
+                                <span className="text-[10px] text-gray-400 block font-medium">Height</span>
+                                <span className="font-bold text-gray-800 dark:text-gray-200">{msg.uiCard.data.heightCm} cm</span>
+                              </div>
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800">
+                                <span className="text-[10px] text-gray-400 block font-medium">Weight</span>
+                                <span className="font-bold text-gray-800 dark:text-gray-200">{msg.uiCard.data.weightKg} kg</span>
+                              </div>
+                              <div className="bg-blue-50/70 dark:bg-blue-950/50 p-2.5 rounded-xl border border-blue-200 dark:border-blue-900/60">
+                                <span className="text-[10px] text-blue-600 dark:text-blue-400 block font-semibold">BMI Index</span>
+                                <span className="font-extrabold text-blue-700 dark:text-blue-300">{msg.uiCard.data.bmi}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* SUGGESTED REPLIES */}
   {isAi && msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (

@@ -103,6 +103,22 @@ const UserSchema = new Schema(
 
       default:"",
 
+    },
+
+    height:{
+
+      type:Number,
+
+      default:null,
+
+    },
+
+    weight:{
+
+      type:Number,
+
+      default:null,
+
     }
 
 

@@ -487,6 +487,21 @@ export async function resolvePersonalHealthContext(
     const isGeneralAllergyQuery = detectedTopics.includes("allergy");
     const normQuery = query.toLowerCase();
 
+    // Height & Weight Vitals from Profile
+    if (user.profile?.height || user.profile?.weight) {
+      const isBmiQuery = normQuery.includes("bmi") || normQuery.includes("weight") || normQuery.includes("height");
+      if (isBmiQuery) {
+        candidateItems.push({
+          type: "vital_log",
+          title: "Vitals: Physical Metrics",
+          value: `Height: ${user.profile.height ? user.profile.height + " cm" : "Not recorded"}, Weight: ${user.profile.weight ? user.profile.weight + " kg" : "Not recorded"}`,
+          source: "USER_CONFIRMED",
+          relevanceScore: 0.99,
+          reason: "Patient height/weight recorded in profile",
+        });
+      }
+    }
+
     // Medical History Conditions
     if (user.medicalHistory && Array.isArray(user.medicalHistory)) {
       for (const h of user.medicalHistory) {

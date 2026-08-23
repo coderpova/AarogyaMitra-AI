@@ -200,7 +200,7 @@ export async function POST(req: Request) {
     // ── STREAMING GROQ RESPONSE ────────────────────────────────────────────────
     const groq = getGroqClient();
     const stream = await groq.chat.completions.create({
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "qwen/qwen3.6-27b",
       messages: messages as any,
       temperature: 0.5,
       max_tokens: 1000,

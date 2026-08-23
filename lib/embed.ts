@@ -1,9 +1,27 @@
 // frontend/lib/embed.ts
+import path from "path";
 import { pipeline, env } from "@xenova/transformers";
+
+// Force Transformers.js to select onnxruntime-web (WASM) instead of onnxruntime-node
+if (typeof process !== "undefined" && process.release?.name === "node") {
+  try {
+    Object.defineProperty(process, "release", {
+      value: { ...process.release, name: "web" },
+      configurable: true,
+    });
+  } catch (_err) {
+    // ignore
+  }
+}
 
 // Configure Transformers.js for WASM/serverless runtime
 env.backends.onnx.wasm.numThreads = 1;
-env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/";
+try {
+  const transDir = path.dirname(require.resolve("@xenova/transformers/package.json"));
+  env.backends.onnx.wasm.wasmPaths = path.join(transDir, "dist") + path.sep;
+} catch (_err) {
+  env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/";
+}
 env.cacheDir = "/tmp/.cache";
 
 let embedPipeline: any = null;

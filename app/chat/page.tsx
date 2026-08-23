@@ -1046,7 +1046,7 @@ export default function ChatPage() {
   }, []);
 
   return (
-    <div className="fixed inset-0 w-full h-[100dvh] max-h-[100dvh] flex overflow-hidden bg-slate-50 dark:bg-gray-950 z-30">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex overflow-hidden bg-slate-50 dark:bg-gray-950">
       {/* VOICE POPUP */}
       {voiceOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
@@ -1069,7 +1069,7 @@ export default function ChatPage() {
       )}
 
       {/* DESKTOP SIDEBAR */}
-      <aside className="hidden md:flex flex-col w-72 border-r border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 h-full shrink-0 relative z-40">
+      <aside className="hidden md:flex flex-col w-72 border-r border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 h-[100dvh] shrink-0">
         <div className="p-4 border-b border-gray-150 dark:border-gray-800 flex items-center gap-3 bg-white dark:bg-gray-900 shrink-0">
           <div className="bg-blue-600 text-white p-2 rounded-xl">
             <HeartPulse size={20} />
@@ -1110,7 +1110,7 @@ export default function ChatPage() {
       )}
 
       {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col h-full max-h-full overflow-hidden min-w-0 bg-slate-50 dark:bg-gray-950 relative">
+      <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden min-w-0 bg-slate-50 dark:bg-gray-950">
         {/* OFFLINE BANNER */}
         {!isOnline && (
           <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0">
@@ -1138,7 +1138,7 @@ export default function ChatPage() {
 
         {/* HEADER */}
         <header
-          className={`px-4 py-3 flex items-center justify-between shadow-sm shrink-0 relative z-50 border-b border-blue-800/20 text-white ${
+          className={`px-4 py-3 flex items-center justify-between shadow-sm shrink-0 relative z-40 border-b border-blue-800/20 text-white ${
             isOnline
               ? "bg-gradient-to-r from-blue-700 via-blue-600 to-teal-600"
               : "bg-gradient-to-r from-gray-700 to-gray-600"
@@ -1198,7 +1198,7 @@ export default function ChatPage() {
         </header>
 
         {/* CHAT MESSAGES SCROLL WRAPPER */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-6">
           <div className="w-full max-w-3xl mx-auto flex flex-col gap-6">
             {messages.map((msg, index) => {
               const isLast = index === messages.length - 1;
@@ -1406,12 +1406,14 @@ export default function ChatPage() {
               </div>
             )}
 
+            {/* Spacer for bottom composer */}
+            <div className="h-32 shrink-0" />
             <div ref={chatEndRef} />
           </div>
         </div>
 
         {/* INPUT COMPOSER CONTAINER */}
-        <div className="shrink-0 p-3 sm:p-4 bg-slate-50/95 dark:bg-gray-950/95 border-t border-gray-200 dark:border-gray-850">
+        <div className="absolute bottom-0 left-0 right-0 md:left-auto md:right-0 md:w-[calc(100%-18rem)] p-3 sm:p-4 bg-gradient-to-t from-gray-50 via-gray-50/95 to-transparent dark:from-gray-950 dark:via-gray-950/95 dark:to-transparent shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-end gap-2.5 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-850 p-2 sm:p-3 shadow-md">
               <textarea

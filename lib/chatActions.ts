@@ -367,6 +367,63 @@ export async function handleChatAction(
     }
   }
 
+  // 5.5. CREATE / SET MEDICINE REMINDER INTENT
+  const isSetReminder = /\b(set a reminder|remind me|add a reminder|add medicine reminder)\b/i.test(query);
+  if (isSetReminder) {
+    const isConfirmed = query.includes("yes") || query.includes("confirm");
+    
+    // Time extraction (e.g., "8 PM", "08:00 AM", "20:00")
+    let time24 = "08:00";
+    const timeMatch = query.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      let h = parseInt(timeMatch[1], 10);
+      const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const period = timeMatch[3]?.toLowerCase();
+      if (period === "pm" && h < 12) h += 12;
+      if (period === "am" && h === 12) h = 0;
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        time24 = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+    }
+
+    // Name & Dose extraction
+    const medMatch = query.match(/(?:for|take)\s+([a-zA-Z0-9\s]+?)(?:\s+at|\s+tomorrow|\s+daily|\s*$)/i);
+    const medName = medMatch ? medMatch[1].trim() : "Medicine";
+
+    // Duplicate Check
+    const existingDuplicate = await Medicine.findOne({
+      userId,
+      isDeleted: { $ne: true },
+      name: { $regex: new RegExp(`^${medName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+      time: time24,
+    });
+
+    if (existingDuplicate) {
+      return {
+        handled: true,
+        reply: `An identical reminder for **${existingDuplicate.name}** at **${existingDuplicate.time}** already exists.\n\n[SUGGESTED_REPLIES]Show my medicines|Go to Medicines Page[/SUGGESTED_REPLIES]`,
+      };
+    }
+
+    if (isConfirmed || query.includes("set a reminder")) {
+      await Medicine.create({
+        userId,
+        name: medName,
+        dose: "1 dose",
+        time: time24,
+        date: new Date().toISOString().split("T")[0],
+        frequency: "Daily",
+        reminder: true,
+        taken: false,
+      });
+
+      return {
+        handled: true,
+        reply: `✅ Set a daily medicine reminder for **${medName}** at **${time24}**.\n\n[SUGGESTED_REPLIES]Show my medicines|Add another reminder|Go to Medicines Page[/SUGGESTED_REPLIES]`,
+      };
+    }
+  }
+
   // 6. LIST MEDICINES / REMINDERS INTENT
   if (
     query.includes("show my medicines") ||

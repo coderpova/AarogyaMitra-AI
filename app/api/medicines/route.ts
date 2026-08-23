@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     if (!body.name || !body.dose || !body.time) {
       return NextResponse.json(
         {
-          message: "All fields are required",
+          message: "Name, dose, and time are required",
         },
         {
           status: 400,
@@ -101,17 +101,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // Duplicate check for identical reminder
+    const existingDuplicate = await Medicine.findOne({
+      userId: decoded.userId,
+      isDeleted: { $ne: true },
+      name: { $regex: new RegExp(`^${body.name.trim()}$`, "i") },
+      time: body.time,
+      date: body.date || "",
+      frequency: body.frequency || "Daily",
+    });
+
+    if (existingDuplicate) {
+      return NextResponse.json(
+        {
+          message: "An identical reminder already exists.",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     const medicine = await Medicine.create({
       userId: decoded.userId,
-      name: body.name,
-      dose: body.dose,
+      name: body.name.trim(),
+      dose: body.dose.trim(),
       time: body.time,
+      date: body.date || "",
+      frequency: body.frequency || "Daily",
+      customDays: body.customDays || [],
       reminder: body.reminder ?? true,
       taken: false,
     });
 
     const medicines = await Medicine.find({
       userId: decoded.userId,
+      isDeleted: { $ne: true },
     }).sort({
       createdAt: -1,
     });
@@ -136,6 +161,84 @@ export async function POST(request: Request) {
       {
         status: 500,
       }
+    );
+  }
+}
+
+// =======================
+// EDIT MEDICINE (PUT)
+// =======================
+
+export async function PUT(request: Request) {
+  try {
+    await connectDB();
+
+    const authHeader = request.headers.get("authorization");
+
+    if (!authHeader) {
+      return NextResponse.json(
+        { message: "No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      userId: string;
+    };
+
+    const body = await request.json();
+
+    if (!body.id || !body.name || !body.dose || !body.time) {
+      return NextResponse.json(
+        { message: "ID, name, dose, and time are required" },
+        { status: 400 }
+      );
+    }
+
+    const medicine = await Medicine.findOne({
+      _id: body.id,
+      userId: decoded.userId,
+    });
+
+    if (!medicine) {
+      return NextResponse.json(
+        { message: "Medicine not found" },
+        { status: 404 }
+      );
+    }
+
+    medicine.name = body.name.trim();
+    medicine.dose = body.dose.trim();
+    medicine.time = body.time;
+    if (body.date !== undefined) medicine.date = body.date;
+    if (body.frequency !== undefined) medicine.frequency = body.frequency;
+    if (body.customDays !== undefined) medicine.customDays = body.customDays;
+    if (body.reminder !== undefined) medicine.reminder = body.reminder;
+
+    await medicine.save();
+
+    const medicines = await Medicine.find({
+      userId: decoded.userId,
+      isDeleted: { $ne: true },
+    }).sort({
+      createdAt: -1,
+    });
+
+    return NextResponse.json(
+      {
+        message: "Medicine Updated Successfully",
+        medicine,
+        medicines,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("PUT medicine error:", error);
+    return NextResponse.json(
+      { message: "Medicine update failed" },
+      { status: 500 }
     );
   }
 }

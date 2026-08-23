@@ -34,6 +34,22 @@ const MedicineSchema = new Schema(
       default: false,
     },
 
+    date: {
+      type: String,
+      default: "",
+    },
+
+    frequency: {
+      type: String,
+      enum: ["Once", "Daily", "Custom"],
+      default: "Daily",
+    },
+
+    customDays: {
+      type: [String],
+      default: [],
+    },
+
     source: {
       type: String,
       enum: ["USER_REPORTED", "PRESCRIPTION", "USER_CONFIRMED"],

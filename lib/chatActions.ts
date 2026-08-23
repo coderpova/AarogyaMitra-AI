@@ -459,224 +459,496 @@ export async function handleChatAction(
     }
   }
 
-  // 6. HYDRATION & WATER LOGGING / READING ENGINE
+  // 6. HEALTH METRICS ENGINE (WATER, SLEEP, EXERCISE — READ/ADD/UPDATE/DELETE)
   const langStyle = detectLanguageStyle(userMessage);
+  const isYesterday = /\b(kal|kl|yesterday|last night|कल)\b/i.test(query);
+  const targetDateStr = isYesterday ? "yesterday" : "today";
+  const dateRange = getTargetDateRange(targetDateStr);
+
+  // ---------------------------------------------------------------------------
+  // A. WATER INTAKE ACTIONS
+  // ---------------------------------------------------------------------------
   const isHydrationMention = /\b(water|pani|paani|पानी|glass|glasses|gilas|gilaas|गिलास|litre|litres|liter|liters|l|ml)\b/i.test(query);
 
-  // A. HYDRATION WRITE INTENT (e.g. "ajj mne 2 glass pani piya isko save kr lo", "I drank 500 ml water today", "आज मैंने 2 गिलास पानी पिया")
-  const isHydrationWrite = isHydrationMention && /\b(drank|piya|logged|save|save kr|save karo|record|drink|पिया|दर्ज)\b/i.test(query);
-  
-  if (isHydrationWrite) {
-    const numMatch = query.match(/(\d+\.?\d*)\s*(glass|glasses|gilas|gilaas|गिलास|litres|litre|liter|liters|l|ml)?/i);
-    
-    if (!numMatch || !numMatch[1]) {
-      let promptMsg = "How much water did you drink? Please specify the quantity (e.g. '2 glasses' or '500 ml').";
-      if (langStyle === "hinglish") {
-        promptMsg = "Aapne kitna paani piya? Kripya quantity bataayein (jaise: '2 glass pani').";
-      } else if (langStyle === "hindi_devanagari") {
-        promptMsg = "आपने कितना पानी पिया? कृपया मात्रा बताएं (जैसे: '2 गिलास पानी')।";
-      }
+  if (isHydrationMention) {
+    const isUpdate = /\b(update|change|set)\b/i.test(query);
+    const isDelete = /\b(delete|remove|clear|hatao|delete karo)\b/i.test(query);
+    const isWrite = /\b(drank|piya|logged|save|save kr|save karo|record|drink|add|added|पिया|दर्ज)\b/i.test(query);
+    const isRead = /\b(kitna|how much|total|show|query|piya|drank|intake)\b/i.test(query) && !isUpdate && !isDelete && !isWrite;
 
-      return {
-        handled: true,
-        success: true,
-        reply: promptMsg,
-      };
-    }
+    // A1. WATER DELETE / REMOVE
+    if (isDelete) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: "Hydration",
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
 
-    const numVal = parseFloat(numMatch[1]);
-    const rawUnit = (numMatch[2] || "").toLowerCase();
-    
-    let formattedValue = `${numVal} glasses`;
-    if (rawUnit.includes("ml")) {
-      formattedValue = `${numVal} ml`;
-    } else if (rawUnit.includes("l") || rawUnit.includes("liter") || rawUnit.includes("litre")) {
-      formattedValue = `${numVal.toFixed(1)} L`;
-    } else if (rawUnit.includes("glass") || rawUnit.includes("gilas") || rawUnit.includes("गिलास")) {
-      formattedValue = numVal === 1 ? "1 glass" : `${numVal} glasses`;
-    }
-
-    const isYesterday = /\b(kal|kl|yesterday|कल)\b/i.test(query);
-    const targetDate = isYesterday ? "yesterday" : "today";
-    const dateRange = getTargetDateRange(targetDate);
-
-    try {
-      // Execute verified DB write
-      const event = await HealthEvent.create({
-        userId,
-        type: "vital_log",
-        symptom: "Hydration",
-        value: formattedValue,
-        source: "USER_REPORTED",
-        isDeleted: false,
-        createdAt: targetDate === "yesterday" ? dateRange.start : new Date(),
-      });
-
-      // Verification check
-      const verified = await HealthEvent.findById(event._id);
-      if (!verified) {
-        let errReply = "❌ Could not log water intake. Database write verification failed.";
-        if (langStyle === "hinglish") {
-          errReply = "❌ Main aapka hydration record save nahi kar paaya. Database save fail ho gaya.";
-        } else if (langStyle === "hindi_devanagari") {
-          errReply = "❌ मैं आपका पानी का रिकॉर्ड दर्ज नहीं कर पाया। डेटाबेस सेव असफल रहा।";
+        if (logs.length === 0) {
+          return {
+            handled: true,
+            success: true,
+            reply: `💧 ${targetDateStr === "yesterday" ? "Yesterday" : "Today"} ka koi water record remove karne ke liye nahi mila.`,
+          };
         }
-        return {
-          handled: true,
-          success: false,
-          reply: errReply,
-        };
-      }
 
-      // Language-consistent success response
-      let successReply = `✅ **Logged ${formattedValue} of water.**`;
-      if (langStyle === "hinglish") {
-        successReply = `Aapka **${formattedValue}** paani ${targetDate === "yesterday" ? "kal" : "aaj"} ke hydration log mein save ho gaya hai. Keep staying hydrated!`;
-      } else if (langStyle === "hindi_devanagari") {
-        successReply = `आपका **${formattedValue}** पानी ${targetDate === "yesterday" ? "कल" : "आज"} के हाइड्रेशन लॉग में दर्ज कर लिया गया है।`;
-      }
+        await HealthEvent.updateMany(
+          {
+            userId,
+            type: "vital_log",
+            symptom: "Hydration",
+            isDeleted: false,
+            createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+          },
+          { $set: { isDeleted: true } }
+        );
 
-      return {
-        handled: true,
-        success: true,
-        action: "LOG_WATER",
-        reply: `${successReply}\n\n[SUGGESTED_REPLIES]${targetDate === "yesterday" ? "Kal maine kitna pani piya?" : "Aaj maine kitna pani piya?"}|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
-      };
-    } catch (err) {
-      console.error("Hydration write error:", err);
-      let failMsg = "❌ Failed to log water intake due to server error.";
-      if (langStyle === "hinglish") failMsg = "❌ Server error ki wajah se paani log nahi ho paaya.";
-      else if (langStyle === "hindi_devanagari") failMsg = "❌ सर्वर त्रुटि के कारण पानी का रिकॉर्ड दर्ज नहीं हो सका।";
-      return {
-        handled: true,
-        success: false,
-        reply: failMsg,
-      };
-    }
-  }
-
-  // B. HYDRATION READ INTENT (e.g. "kl mne kitna pani piya", "kal maine kitna pani piya", "how much water did i drink yesterday", "aaj kitna pani piya")
-  const isHydrationRead = isHydrationMention && /\b(kitna|how much|total|show|query|piya|drank|intake)\b/i.test(query);
-  
-  if (isHydrationRead) {
-    try {
-      const isYesterday = /\b(kal|kl|yesterday|कल)\b/i.test(query);
-      const targetDate = isYesterday ? "yesterday" : "today";
-      const dateRange = getTargetDateRange(targetDate);
-
-      const logs = await HealthEvent.find({
-        userId,
-        type: "vital_log",
-        symptom: "Hydration",
-        isDeleted: false,
-        createdAt: { $gte: dateRange.start, $lt: dateRange.end },
-      });
-
-      if (logs.length === 0) {
-        let noDataMsg = `No hydration record found for ${targetDate}.`;
-        if (langStyle === "hinglish") {
-          noDataMsg = `${targetDate === "yesterday" ? "Kal" : "Aaj"} ka koi hydration record nahi mila.`;
-        } else if (langStyle === "hindi_devanagari") {
-          noDataMsg = `${targetDate === "yesterday" ? "कल" : "आज"} का कोई पानी का रिकॉर्ड नहीं मिला।`;
-        }
         return {
           handled: true,
           success: true,
-          reply: `💧 ${noDataMsg}`,
+          action: "DELETE_WATER",
+          reply: `✅ **Removed ${targetDateStr}'s water intake record.** Dashboard updated.\n\n[SUGGESTED_REPLIES]How much water did I drink today?|Add 2 glasses of water|Go to Dashboard[/SUGGESTED_REPLIES]`,
         };
+      } catch (err) {
+        console.error("Water delete error:", err);
+        return { handled: true, success: false, reply: "❌ Could not remove water entry due to a server error." };
       }
-
-      // Aggregate entries by unit
-      let totalGlasses = 0;
-      let totalLitres = 0;
-      let totalMl = 0;
-      const otherUnits: string[] = [];
-
-      logs.forEach((log) => {
-        const valStr = (log.value || "").trim();
-        const m = valStr.match(/(\d+\.?\d*)\s*(glass|glasses|l|litres|litre|liter|liters|ml)?/i);
-        if (m) {
-          const num = parseFloat(m[1]);
-          const unit = (m[2] || "").toLowerCase();
-          if (unit.includes("glass")) {
-            totalGlasses += num;
-          } else if (unit === "ml") {
-            totalMl += num;
-          } else if (unit === "l" || unit.includes("liter") || unit.includes("litre")) {
-            totalLitres += num;
-          } else {
-            otherUnits.push(valStr);
-          }
-        }
-      });
-
-      const summaryParts: string[] = [];
-      if (totalGlasses > 0) summaryParts.push(`${totalGlasses} ${totalGlasses === 1 ? "glass" : "glasses"}`);
-      if (totalLitres > 0) summaryParts.push(`${totalLitres.toFixed(1)} L`);
-      if (totalMl > 0) summaryParts.push(`${totalMl} ml`);
-      otherUnits.forEach((u) => summaryParts.push(u));
-
-      const summaryStr = summaryParts.join(" and ") || "0 L";
-
-      let readReply = `💧 Yesterday you logged **${summaryStr}** of water.`;
-      if (targetDate === "today") readReply = `💧 Today you have logged **${summaryStr}** of water.`;
-
-      if (langStyle === "hinglish") {
-        readReply = targetDate === "yesterday"
-          ? `💧 Kal aapne **${summaryStr}** paani piya tha.`
-          : `💧 Aaj aapne **${summaryStr}** paani log kiya hai.`;
-      } else if (langStyle === "hindi_devanagari") {
-        readReply = targetDate === "yesterday"
-          ? `💧 कल आपने **${summaryStr}** पानी पिया था।`
-          : `💧 आज आपने **${summaryStr}** पानी का रिकॉर्ड दर्ज किया है।`;
-      }
-
-      return {
-        handled: true,
-        success: true,
-        reply: readReply,
-      };
-    } catch (err) {
-      console.error("Hydration read error:", err);
     }
-  }
 
-  // 7. HEALTH TIMELINE LOGGING (Activity, Sleep, Symptoms)
-  const isActivityLog = /\b(walked|ran|exercised|slept)\b/i.test(query) && /\b(\d+\.?\d*)\s*(km|miles|hours|hrs|minutes|mins)\b/i.test(query);
-  if (isActivityLog) {
-    const match = query.match(/(walked|ran|exercised|slept)\s*(\d+\.?\d*)\s*(km|miles|hours|hrs|minutes|mins)/i);
-    if (match) {
-      const activity = match[1];
-      const num = match[2];
-      const unit = match[3];
+    // A2. WATER UPDATE
+    if (isUpdate) {
+      const numMatch = query.match(/(\d+\.?\d*)\s*(glass|glasses|gilas|gilaas|गिलास|litres|litre|liter|liters|l|ml)?/i);
+      if (!numMatch || !numMatch[1]) {
+        return { handled: true, success: true, reply: "Please specify the updated water quantity (e.g., 'Update water intake to 2 L' or 'Update water to 8 glasses')." };
+      }
+
+      const numVal = parseFloat(numMatch[1]);
+      const rawUnit = (numMatch[2] || "").toLowerCase();
+      let formattedValue = `${numVal} glasses`;
+      if (rawUnit.includes("ml")) formattedValue = `${numVal} ml`;
+      else if (rawUnit.includes("l") || rawUnit.includes("liter") || rawUnit.includes("litre")) formattedValue = `${numVal.toFixed(1)} L`;
+      else if (rawUnit.includes("glass") || rawUnit.includes("gilas") || rawUnit.includes("गिलास")) formattedValue = numVal === 1 ? "1 glass" : `${numVal} glasses`;
+
+      try {
+        // Soft delete prior entries for target date
+        await HealthEvent.updateMany(
+          { userId, type: "vital_log", symptom: "Hydration", isDeleted: false, createdAt: { $gte: dateRange.start, $lt: dateRange.end } },
+          { $set: { isDeleted: true } }
+        );
+
+        const newEvent = await HealthEvent.create({
+          userId,
+          type: "vital_log",
+          symptom: "Hydration",
+          value: formattedValue,
+          source: "USER_REPORTED",
+          isDeleted: false,
+          createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
+        });
+
+        const verified = await HealthEvent.findById(newEvent._id);
+        if (!verified) return { handled: true, success: false, reply: "❌ Database update verification failed." };
+
+        return {
+          handled: true,
+          success: true,
+          action: "UPDATE_WATER",
+          reply: `✅ **Updated ${targetDateStr}'s water intake to ${formattedValue}.** Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How much water did I drink today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Water update error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to update water intake due to server error." };
+      }
+    }
+
+    // A3. WATER ADD / LOG
+    if (isWrite || (!isRead && /\d+/.test(query))) {
+      const numMatch = query.match(/(\d+\.?\d*)\s*(glass|glasses|gilas|gilaas|गिलास|litres|litre|liter|liters|l|ml)?/i);
+      if (!numMatch || !numMatch[1]) {
+        let promptMsg = "How much water did you drink? Please specify the quantity (e.g. '2 glasses' or '500 ml').";
+        if (langStyle === "hinglish") promptMsg = "Aapne kitna paani piya? Kripya quantity bataayein (jaise: '2 glass pani').";
+        else if (langStyle === "hindi_devanagari") promptMsg = "आपने कितना पानी पिया? कृपया मात्रा बताएं (जैसे: '2 गिलास पानी')।";
+        return { handled: true, success: true, reply: promptMsg };
+      }
+
+      const numVal = parseFloat(numMatch[1]);
+      const rawUnit = (numMatch[2] || "").toLowerCase();
+      let formattedValue = `${numVal} glasses`;
+      if (rawUnit.includes("ml")) formattedValue = `${numVal} ml`;
+      else if (rawUnit.includes("l") || rawUnit.includes("liter") || rawUnit.includes("litre")) formattedValue = `${numVal.toFixed(1)} L`;
+      else if (rawUnit.includes("glass") || rawUnit.includes("gilas") || rawUnit.includes("गिलास")) formattedValue = numVal === 1 ? "1 glass" : `${numVal} glasses`;
 
       try {
         const event = await HealthEvent.create({
           userId,
           type: "vital_log",
-          symptom: activity.charAt(0).toUpperCase() + activity.slice(1),
-          value: `${num} ${unit}`,
+          symptom: "Hydration",
+          value: formattedValue,
           source: "USER_REPORTED",
           isDeleted: false,
+          createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
         });
 
         const verified = await HealthEvent.findById(event._id);
-        if (!verified) {
-          return {
-            handled: true,
-            success: false,
-            reply: `❌ Could not log activity. Database verification failed.`,
-          };
-        }
+        if (!verified) return { handled: true, success: false, reply: "❌ Database write verification failed." };
+
+        let successReply = `✅ **Logged ${formattedValue} of water for ${targetDateStr}.**`;
+        if (langStyle === "hinglish") successReply = `Aapka **${formattedValue}** paani ${targetDateStr === "yesterday" ? "kal" : "aaj"} ke log mein save ho gaya hai. Dashboard updated!`;
+        else if (langStyle === "hindi_devanagari") successReply = `आपका **${formattedValue}** पानी ${targetDateStr === "yesterday" ? "कल" : "आज"} के लॉग में दर्ज कर लिया गया है।`;
 
         return {
           handled: true,
           success: true,
-          action: "LOG_ACTIVITY",
-          reply: `✅ **Logged ${activity}: ${num} ${unit} for today.**\n\nYour activity record has been saved to your health timeline.`,
+          action: "LOG_WATER",
+          reply: `${successReply}\n\n[SUGGESTED_REPLIES]How much water did I drink today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
         };
       } catch (err) {
-        console.error("Activity log error:", err);
+        console.error("Water write error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to log water intake due to server error." };
+      }
+    }
+
+    // A4. WATER READ
+    if (isRead) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: "Hydration",
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
+
+        if (logs.length === 0) {
+          let noDataMsg = `No hydration record found for ${targetDateStr}.`;
+          if (langStyle === "hinglish") noDataMsg = `${targetDateStr === "yesterday" ? "Kal" : "Aaj"} ka koi hydration record nahi mila.`;
+          else if (langStyle === "hindi_devanagari") noDataMsg = `${targetDateStr === "yesterday" ? "कल" : "आज"} का कोई पानी का रिकॉर्ड नहीं मिला।`;
+          return { handled: true, success: true, reply: `💧 ${noDataMsg}` };
+        }
+
+        let totalGlasses = 0;
+        let totalLitres = 0;
+        let totalMl = 0;
+        logs.forEach((log) => {
+          const valStr = (log.value || "").trim();
+          const m = valStr.match(/(\d+\.?\d*)\s*(glass|glasses|l|litres|litre|liter|liters|ml)?/i);
+          if (m) {
+            const num = parseFloat(m[1]);
+            const unit = (m[2] || "").toLowerCase();
+            if (unit.includes("glass")) totalGlasses += num;
+            else if (unit === "ml") totalMl += num;
+            else if (unit === "l" || unit.includes("liter") || unit.includes("litre")) totalLitres += num;
+          }
+        });
+
+        const summaryParts: string[] = [];
+        if (totalGlasses > 0) summaryParts.push(`${totalGlasses} ${totalGlasses === 1 ? "glass" : "glasses"}`);
+        if (totalLitres > 0) summaryParts.push(`${totalLitres.toFixed(1)} L`);
+        if (totalMl > 0) summaryParts.push(`${totalMl} ml`);
+        const summaryStr = summaryParts.join(" and ") || "0 L";
+
+        let readReply = `💧 ${targetDateStr === "yesterday" ? "Yesterday" : "Today"} you logged **${summaryStr}** of water.`;
+        if (langStyle === "hinglish") readReply = `💧 ${targetDateStr === "yesterday" ? "Kal" : "Aaj"} aapne **${summaryStr}** paani log kiya hai.`;
+        else if (langStyle === "hindi_devanagari") readReply = `💧 ${targetDateStr === "yesterday" ? "कल" : "आज"} आपने **${summaryStr}** पानी का रिकॉर्ड दर्ज किया है।`;
+
+        return { handled: true, success: true, reply: readReply };
+      } catch (err) {
+        console.error("Water read error:", err);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // B. SLEEP ACTIONS (READ / ADD / UPDATE / DELETE)
+  // ---------------------------------------------------------------------------
+  const isSleepMention = /\b(sleep|slept|soya|soye|neend|सोया|नींद)\b/i.test(query);
+
+  if (isSleepMention) {
+    const isUpdate = /\b(update|change|set)\b/i.test(query);
+    const isDelete = /\b(delete|remove|clear|hatao)\b/i.test(query);
+    const isWrite = /\b(slept|soya|soye|sleep|logged|save|add|added|record)\b/i.test(query) && /\d+/.test(query);
+    const isRead = /\b(how much|how many|kitna|kitne|total|show|query)\b/i.test(query) && !isUpdate && !isDelete && !isWrite;
+
+    // B1. SLEEP DELETE
+    if (isDelete) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: { $in: ["Sleep", "Slept"] },
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
+
+        if (logs.length === 0) {
+          return { handled: true, success: true, reply: `😴 No sleep record found to remove for ${targetDateStr}.` };
+        }
+
+        await HealthEvent.updateMany(
+          { userId, type: "vital_log", symptom: { $in: ["Sleep", "Slept"] }, isDeleted: false, createdAt: { $gte: dateRange.start, $lt: dateRange.end } },
+          { $set: { isDeleted: true } }
+        );
+
+        return {
+          handled: true,
+          success: true,
+          action: "DELETE_SLEEP",
+          reply: `✅ **Removed ${targetDateStr}'s sleep record.** Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How many hours did I sleep last night?|Add 7.5 hours sleep|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Sleep delete error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to remove sleep record due to server error." };
+      }
+    }
+
+    // B2. SLEEP UPDATE
+    if (isUpdate) {
+      const match = query.match(/(\d+\.?\d*)\s*(hour|hours|hrs|hr|h|m|mins|minutes)?/i);
+      if (!match || !match[1]) {
+        return { handled: true, success: true, reply: "Please specify the updated sleep duration (e.g., 'Update sleep to 8 hours' or 'Update sleep to 7.5 hrs')." };
+      }
+
+      const num = parseFloat(match[1]);
+      const valStr = `${num} hours`;
+
+      try {
+        await HealthEvent.updateMany(
+          { userId, type: "vital_log", symptom: { $in: ["Sleep", "Slept"] }, isDeleted: false, createdAt: { $gte: dateRange.start, $lt: dateRange.end } },
+          { $set: { isDeleted: true } }
+        );
+
+        const newEvent = await HealthEvent.create({
+          userId,
+          type: "vital_log",
+          symptom: "Sleep",
+          value: valStr,
+          source: "USER_REPORTED",
+          isDeleted: false,
+          createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
+        });
+
+        const verified = await HealthEvent.findById(newEvent._id);
+        if (!verified) return { handled: true, success: false, reply: "❌ Database update verification failed." };
+
+        return {
+          handled: true,
+          success: true,
+          action: "UPDATE_SLEEP",
+          reply: `✅ **Updated ${targetDateStr}'s sleep log to ${valStr}.** Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How many hours did I sleep last night?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Sleep update error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to update sleep record." };
+      }
+    }
+
+    // B3. SLEEP ADD
+    if (isWrite || (!isRead && /\d+/.test(query))) {
+      const match = query.match(/(\d+\.?\d*)\s*(hour|hours|hrs|hr|h|m|mins|minutes)?/i);
+      if (match && match[1]) {
+        const num = parseFloat(match[1]);
+        const valStr = `${num} hours`;
+
+        try {
+          const event = await HealthEvent.create({
+            userId,
+            type: "vital_log",
+            symptom: "Sleep",
+            value: valStr,
+            source: "USER_REPORTED",
+            isDeleted: false,
+            createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
+          });
+
+          const verified = await HealthEvent.findById(event._id);
+          if (!verified) return { handled: true, success: false, reply: "❌ Database write verification failed." };
+
+          return {
+            handled: true,
+            success: true,
+            action: "LOG_SLEEP",
+            reply: `✅ **Logged ${valStr} sleep for ${targetDateStr}.** Saved to health timeline and Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How many hours did I sleep last night?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+          };
+        } catch (err) {
+          console.error("Sleep log error:", err);
+          return { handled: true, success: false, reply: "❌ Failed to log sleep record." };
+        }
+      }
+    }
+
+    // B4. SLEEP READ
+    if (isRead || query.includes("hours") || query.includes("sleep")) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: { $in: ["Sleep", "Slept"] },
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
+
+        if (logs.length === 0) {
+          return { handled: true, success: true, reply: `😴 No sleep record found for ${targetDateStr === "yesterday" ? "last night" : "today"}.` };
+        }
+
+        const lastLog = logs[0];
+        return {
+          handled: true,
+          success: true,
+          reply: `😴 ${targetDateStr === "yesterday" ? "Last night" : "Today"} you logged **${lastLog.value}** of sleep.`,
+        };
+      } catch (err) {
+        console.error("Sleep read error:", err);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // C. EXERCISE / ACTIVITY ACTIONS (READ / ADD / UPDATE / DELETE)
+  // ---------------------------------------------------------------------------
+  const isExerciseMention = /\b(exercise|exercised|walk|walked|run|ran|walking|running|activity|workout|कसरत)\b/i.test(query);
+
+  if (isExerciseMention) {
+    const isUpdate = /\b(update|change|set)\b/i.test(query);
+    const isDelete = /\b(delete|remove|clear|hatao)\b/i.test(query);
+    const isWrite = /\b(walked|ran|exercised|workout|did exercise|logged|save|add|added|record)\b/i.test(query) && /\d+/.test(query);
+    const isRead = /\b(how much|how many|kitna|kitne|total|show|query)\b/i.test(query) && !isUpdate && !isDelete && !isWrite;
+
+    // C1. EXERCISE DELETE
+    if (isDelete) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: { $in: ["Exercise", "Exercised", "Walking", "Walked", "Running", "Ran", "Activity"] },
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
+
+        if (logs.length === 0) {
+          return { handled: true, success: true, reply: `🏃 No exercise record found to remove for ${targetDateStr}.` };
+        }
+
+        await HealthEvent.updateMany(
+          { userId, type: "vital_log", symptom: { $in: ["Exercise", "Exercised", "Walking", "Walked", "Running", "Ran", "Activity"] }, isDeleted: false, createdAt: { $gte: dateRange.start, $lt: dateRange.end } },
+          { $set: { isDeleted: true } }
+        );
+
+        return {
+          handled: true,
+          success: true,
+          action: "DELETE_EXERCISE",
+          reply: `✅ **Removed ${targetDateStr}'s exercise record.** Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How much did I exercise today?|I walked 5 km today|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Exercise delete error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to remove exercise record due to server error." };
+      }
+    }
+
+    // C2. EXERCISE UPDATE
+    if (isUpdate) {
+      const match = query.match(/(\d+\.?\d*)\s*(km|miles|m|mins|minutes|hours|hrs|h)?/i);
+      if (!match || !match[1]) {
+        return { handled: true, success: true, reply: "Please specify the updated exercise amount (e.g. 'Update today's exercise to 45 minutes' or 'Update walking to 5 km')." };
+      }
+
+      const num = parseFloat(match[1]);
+      const rawUnit = (match[2] || "mins").toLowerCase();
+      const valStr = `${num} ${rawUnit}`;
+
+      try {
+        await HealthEvent.updateMany(
+          { userId, type: "vital_log", symptom: { $in: ["Exercise", "Exercised", "Walking", "Walked", "Running", "Ran", "Activity"] }, isDeleted: false, createdAt: { $gte: dateRange.start, $lt: dateRange.end } },
+          { $set: { isDeleted: true } }
+        );
+
+        const newEvent = await HealthEvent.create({
+          userId,
+          type: "vital_log",
+          symptom: "Exercise",
+          value: valStr,
+          source: "USER_REPORTED",
+          isDeleted: false,
+          createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
+        });
+
+        const verified = await HealthEvent.findById(newEvent._id);
+        if (!verified) return { handled: true, success: false, reply: "❌ Database update verification failed." };
+
+        return {
+          handled: true,
+          success: true,
+          action: "UPDATE_EXERCISE",
+          reply: `✅ **Updated ${targetDateStr}'s exercise to ${valStr}.** Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How much did I exercise today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+        };
+      } catch (err) {
+        console.error("Exercise update error:", err);
+        return { handled: true, success: false, reply: "❌ Failed to update exercise record." };
+      }
+    }
+
+    // C3. EXERCISE ADD
+    if (isWrite || (!isRead && /\d+/.test(query))) {
+      const match = query.match(/(\d+\.?\d*)\s*(km|miles|m|mins|minutes|hours|hrs|h)?/i);
+      if (match && match[1]) {
+        const num = parseFloat(match[1]);
+        const rawUnit = (match[2] || "mins").toLowerCase();
+        const valStr = `${num} ${rawUnit}`;
+
+        try {
+          const event = await HealthEvent.create({
+            userId,
+            type: "vital_log",
+            symptom: "Exercise",
+            value: valStr,
+            source: "USER_REPORTED",
+            isDeleted: false,
+            createdAt: targetDateStr === "yesterday" ? dateRange.start : new Date(),
+          });
+
+          const verified = await HealthEvent.findById(event._id);
+          if (!verified) return { handled: true, success: false, reply: "❌ Database write verification failed." };
+
+          return {
+            handled: true,
+            success: true,
+            action: "LOG_EXERCISE",
+            reply: `✅ **Logged exercise: ${valStr} for ${targetDateStr}.** Saved to health timeline and Dashboard synchronized.\n\n[SUGGESTED_REPLIES]How much did I exercise today?|Show my health timeline|Go to Dashboard[/SUGGESTED_REPLIES]`,
+          };
+        } catch (err) {
+          console.error("Exercise write error:", err);
+          return { handled: true, success: false, reply: "❌ Failed to log exercise record." };
+        }
+      }
+    }
+
+    // C4. EXERCISE READ
+    if (isRead || query.includes("exercise") || query.includes("walk")) {
+      try {
+        const logs = await HealthEvent.find({
+          userId,
+          type: "vital_log",
+          symptom: { $in: ["Exercise", "Exercised", "Walking", "Walked", "Running", "Ran", "Activity"] },
+          isDeleted: false,
+          createdAt: { $gte: dateRange.start, $lt: dateRange.end },
+        });
+
+        if (logs.length === 0) {
+          return { handled: true, success: true, reply: `🏃 No exercise record found for ${targetDateStr}.` };
+        }
+
+        const summaryParts = logs.map((l) => l.value);
+        return {
+          handled: true,
+          success: true,
+          reply: `🏃 ${targetDateStr === "yesterday" ? "Yesterday" : "Today"} you logged **${summaryParts.join(", ")}** of exercise/activity.`,
+        };
+      } catch (err) {
+        console.error("Exercise read error:", err);
       }
     }
   }

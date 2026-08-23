@@ -297,25 +297,60 @@ export default function DashboardPage() {
           }
         }
 
-        // Persistent health timeline hydration
+        // Persistent health timeline metrics (Water, Sleep, Exercise)
         if (timelineRes.ok) {
           const timeData = await timelineRes.json();
           const events: any[] = timeData.events || [];
           const todayStr = getLocalDateString();
           let todayWaterGlasses = 0;
+          let todaySleepHours = 0;
+          let todayExerciseMinutes = 0;
 
           events.forEach((ev) => {
-            if (ev.type === "vital_log" && ev.symptom === "Hydration" && ev.createdAt) {
+            if (ev.type === "vital_log" && ev.createdAt && !ev.isDeleted) {
               const evDate = getLocalDateString(new Date(ev.createdAt));
               if (evDate === todayStr) {
-                const valMatch = (ev.value || "").match(/(\d+\.?\d*)\s*(glass|glasses|l|litres)?/i);
-                if (valMatch) {
-                  let num = parseFloat(valMatch[1]);
-                  const unit = (valMatch[2] || "").toLowerCase();
-                  if (unit.includes("l") && !unit.includes("glass")) {
-                    num = num * 4; // 1L ~ 4 glasses
+                const sName = (ev.symptom || "").toLowerCase();
+
+                // 1. Water
+                if (sName === "hydration" || sName === "water") {
+                  const valMatch = (ev.value || "").match(/(\d+\.?\d*)\s*(glass|glasses|l|litres|liter|liters|ml)?/i);
+                  if (valMatch) {
+                    let num = parseFloat(valMatch[1]);
+                    const unit = (valMatch[2] || "").toLowerCase();
+                    if (unit.includes("l") && !unit.includes("glass") && !unit.includes("ml")) {
+                      num = num * 4; // 1L ~ 4 glasses
+                    } else if (unit.includes("ml")) {
+                      num = num / 250; // 250ml ~ 1 glass
+                    }
+                    todayWaterGlasses += num;
                   }
-                  todayWaterGlasses += num;
+                }
+
+                // 2. Sleep
+                if (sName === "sleep" || sName === "slept") {
+                  const valMatch = (ev.value || "").match(/(\d+\.?\d*)\s*(hour|hours|hr|hrs|h|m|mins|minutes)?/i);
+                  if (valMatch) {
+                    let num = parseFloat(valMatch[1]);
+                    const unit = (valMatch[2] || "").toLowerCase();
+                    if (unit.includes("m") && !unit.includes("h")) {
+                      num = num / 60;
+                    }
+                    todaySleepHours = Math.round(num * 10) / 10;
+                  }
+                }
+
+                // 3. Exercise
+                if (sName === "exercise" || sName === "exercised" || sName === "walking" || sName === "walked" || sName === "running" || sName === "ran" || sName === "activity") {
+                  const valMatch = (ev.value || "").match(/(\d+\.?\d*)\s*(min|mins|minutes|m|km|miles|h|hr|hours)?/i);
+                  if (valMatch) {
+                    let num = parseFloat(valMatch[1]);
+                    const unit = (valMatch[2] || "").toLowerCase();
+                    if (unit.includes("h") || unit.includes("hour")) {
+                      num = num * 60;
+                    }
+                    todayExerciseMinutes += num;
+                  }
                 }
               }
             }
@@ -323,6 +358,12 @@ export default function DashboardPage() {
 
           if (todayWaterGlasses > 0) {
             setWaterIntake(todayWaterGlasses);
+          }
+          if (todaySleepHours > 0) {
+            setSleepHrs(todaySleepHours);
+          }
+          if (todayExerciseMinutes > 0) {
+            setExerciseMin(todayExerciseMinutes);
           }
         }
       } catch (error) {

@@ -9,15 +9,17 @@ import CTA from "@/components/home/CTA";
 
 export default function Home() {
   return (
-    <>
+    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-300">
       <Navbar />
-      <Hero />
-      <Features />
-      <Statistics />
-      <WhyChooseUs />
-      <Testimonials />
-      <CTA />
+      <main className="flex-1">
+        <Hero />
+        <Features />
+        <Statistics />
+        <WhyChooseUs />
+        <Testimonials />
+        <CTA />
+      </main>
       <Footer />
-    </>
+    </div>
   );
 }

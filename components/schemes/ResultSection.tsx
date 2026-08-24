@@ -2,7 +2,7 @@
 
 import SchemeCard from "./SchemeCard";
 import { Scheme } from "@/lib/schemeMatcher";
-import { SearchX, BookOpen, HeartPulse, Baby, UserCheck, Tractor, Briefcase, Home } from "lucide-react";
+import { SearchX, Shield, HeartPulse, Baby, UserCheck, Stethoscope, MapPin } from "lucide-react";
 
 interface Props {
   schemes: Scheme[];
@@ -18,13 +18,12 @@ export default function ResultSection({
   onSelectCategory,
 }: Props) {
   const suggestedCategories = [
-    { label: "Education", icon: BookOpen },
-    { label: "Healthcare", icon: HeartPulse },
-    { label: "Women & Child", icon: Baby },
-    { label: "Senior Citizen", icon: UserCheck },
-    { label: "Farmers", icon: Tractor },
-    { label: "Employment", icon: Briefcase },
-    { label: "Housing", icon: Home },
+    { label: "Health Insurance", icon: Shield },
+    { label: "Maternal & Child Health", icon: Baby },
+    { label: "Senior Healthcare", icon: UserCheck },
+    { label: "Disability Support", icon: Stethoscope },
+    { label: "Medical Assistance", icon: HeartPulse },
+    { label: "State Health Schemes", icon: MapPin },
   ];
 
   return (
@@ -32,7 +31,7 @@ export default function ResultSection({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold dark:text-white flex items-center gap-2">
-            Available Government Schemes
+            Available Healthcare Schemes
             <span className="text-xs bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold px-2.5 py-1 rounded-full">
               {schemes.length} Matches
             </span>
@@ -52,11 +51,11 @@ export default function ResultSection({
           </div>
 
           <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-            No closely matching scheme was found.
+            No matching healthcare scheme was found.
           </h3>
 
           <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm max-w-md mx-auto">
-            Try adjusting your search terms, state selection, or explore popular scheme categories below:
+            Try adjusting your age, income, state of residence, or explore popular healthcare categories below:
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-2 max-w-xl mx-auto">

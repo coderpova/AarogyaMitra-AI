@@ -30,10 +30,10 @@ export default function DashboardLayout({
   }, [open]);
 
   return (
-    <div className="min-h-[100dvh] w-full bg-slate-50 dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
       <Sidebar open={open} setOpen={setOpen} />
 
-      <div className="flex-1 flex flex-col min-w-0 text-slate-900 dark:text-white md:ml-72 min-h-[100dvh] bg-slate-50 dark:bg-gray-950">
+      <div className="flex-1 flex flex-col min-w-0 text-slate-900 dark:text-white md:ml-72 min-h-screen bg-slate-50 dark:bg-gray-950">
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-slate-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
           <div className="flex items-center gap-3">

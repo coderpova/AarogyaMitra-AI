@@ -7,16 +7,25 @@ export async function GET() {
   try {
     await dbConnect();
 
-    let schemes = await Scheme.find({}).sort({ createdAt: -1 });
+    let dbSchemes = await Scheme.find({}).sort({ createdAt: -1 });
 
-    if (!schemes || schemes.length === 0) {
-      schemes = fallbackSchemes as any[];
+    if (!dbSchemes || dbSchemes.length === 0) {
+      dbSchemes = fallbackSchemes as any[];
     }
+
+    // Ensure non-health legacy categories (e.g. Education, Farmers, Employment, Housing) are excluded
+    const nonHealthCategories = ["education", "farmers", "employment", "housing"];
+    const schemes = dbSchemes.filter((s: any) => {
+      const cat = (s.category || "").toLowerCase();
+      return !nonHealthCategories.includes(cat);
+    });
+
+    const finalSchemes = schemes.length > 0 ? schemes : fallbackSchemes;
 
     return NextResponse.json(
       {
         success: true,
-        schemes,
+        schemes: finalSchemes,
       },
       { status: 200 }
     );

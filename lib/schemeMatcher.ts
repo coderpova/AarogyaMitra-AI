@@ -7,9 +7,6 @@ export interface UserProfile {
   pregnant: boolean;
   seniorCitizen: boolean;
   disability: boolean;
-  student?: boolean;
-  farmer?: boolean;
-  unemployed?: boolean;
 }
 
 export interface SchemeEligibility {
@@ -20,9 +17,6 @@ export interface SchemeEligibility {
   pregnant?: boolean;
   seniorCitizen?: boolean;
   disability?: boolean;
-  student?: boolean;
-  farmer?: boolean;
-  unemployed?: boolean;
 }
 
 export interface Scheme {
@@ -59,31 +53,51 @@ export function normalizeState(inputState: string): string {
 export function checkBasicEligibility(user: UserProfile, scheme: Scheme): boolean {
   const rule = scheme.eligibility || {};
 
+  // Age checks
   if (rule.minAge !== undefined && user.age > 0 && user.age < rule.minAge) {
     return false;
   }
   if (rule.maxAge !== undefined && user.age > 0 && user.age > rule.maxAge) {
     return false;
   }
+
+  // Income ceiling check
   if (rule.maxIncome !== undefined && user.income > 0 && user.income > rule.maxIncome) {
     return false;
   }
+
+  // Gender check
   if (
     rule.gender &&
-    rule.gender !== "any" &&
+    rule.gender.toLowerCase() !== "any" &&
     user.gender &&
     rule.gender.toLowerCase() !== user.gender.toLowerCase()
   ) {
     return false;
   }
+
+  // Maternal care check
   if (rule.pregnant === true && user.pregnant !== true) {
     return false;
   }
-  if (rule.seniorCitizen === true && user.seniorCitizen !== true) {
+
+  // Senior citizen check (age 60+ or explicit flag)
+  if (rule.seniorCitizen === true && user.seniorCitizen !== true && user.age < 60) {
     return false;
   }
+
+  // Disability check
   if (rule.disability === true && user.disability !== true) {
     return false;
+  }
+
+  // State mismatch check
+  if (user.state && scheme.state && scheme.state !== "All India") {
+    const userStateNorm = normalizeState(user.state);
+    const schemeStateNorm = normalizeState(scheme.state);
+    if (userStateNorm && schemeStateNorm && userStateNorm !== schemeStateNorm) {
+      return false;
+    }
   }
 
   return true;
@@ -96,7 +110,7 @@ export function matchAndRankSchemes(
   selectedCategory: string = ""
 ): Scheme[] {
   const q = searchQuery.toLowerCase().trim();
-  const targetState = normalizeState(user.state || (q.includes("uttar pradesh") || q.includes("up") ? "Uttar Pradesh" : ""));
+  const userStateNorm = normalizeState(user.state);
 
   const results = schemes.map((scheme) => {
     let score = 0;
@@ -109,127 +123,127 @@ export function matchAndRankSchemes(
     const schemeStateNorm = normalizeState(scheme.state || "All India");
     const tags = (scheme.tags || []).map((t) => t.toLowerCase());
 
-    // 1. Basic Demographic Eligibility Check
+    // 1. Demographic & State Eligibility
     const isEligible = checkBasicEligibility(user, scheme);
+
     if (isEligible) {
-      score += 10;
+      score += 20;
+
+      // Add specific match reasons based on user profile inputs
+      if (userStateNorm && (schemeStateNorm === userStateNorm || schemeStateNorm === "All India")) {
+        matchReasons.push(`State: ${schemeStateNorm}`);
+        score += 15;
+      }
+
+      if (user.income > 0 && scheme.eligibility?.maxIncome) {
+        matchReasons.push(`Income Eligible (≤ ₹${scheme.eligibility.maxIncome.toLocaleString("en-IN")})`);
+        score += 10;
+      }
+
+      if ((user.age >= 60 || user.seniorCitizen) && (scheme.eligibility?.seniorCitizen || catLower.includes("senior"))) {
+        matchReasons.push("Senior Healthcare");
+        score += 15;
+      }
+
+      if (user.pregnant && (scheme.eligibility?.pregnant || catLower.includes("maternal"))) {
+        matchReasons.push("Maternal Healthcare");
+        score += 15;
+      }
+
+      if (user.disability && (scheme.eligibility?.disability || catLower.includes("disability"))) {
+        matchReasons.push("Disability Support");
+        score += 15;
+      }
+    } else {
+      // Ineligible schemes get reduced score when user filtering is active
+      score -= 50;
     }
 
-    // 2. Category Filter Selection
+    // 2. Category Filter
     if (selectedCategory && selectedCategory !== "All") {
       const selCatLower = selectedCategory.toLowerCase();
-      if (!catLower.includes(selCatLower) && !tags.some((t) => t.includes(selCatLower))) {
-        return { scheme, score: -100, isEligible, matchReasons: [] };
+      const catMatches = catLower.includes(selCatLower) || tags.some((t) => t.includes(selCatLower));
+      if (!catMatches) {
+        return { scheme: { ...scheme, isEligible: false }, score: -100, isEligible: false, matchReasons: [] };
       } else {
         score += 30;
         matchReasons.push(`Category: ${scheme.category || selectedCategory}`);
       }
     }
 
-    // 3. Search Query Matching & Ranking
+    // 3. Search Query Keyword Matching
     if (q) {
-      // Check state mention in query
+      // State search in query
       if (q.includes("uttar pradesh") || q.includes("up")) {
         if (schemeStateNorm === "Uttar Pradesh") {
           score += 40;
           matchReasons.push("State: Uttar Pradesh");
         } else if (schemeStateNorm !== "All India") {
-          // Scheme belongs to another specific state
-          return { scheme, score: -100, isEligible, matchReasons: [] };
+          return { scheme: { ...scheme, isEligible: false }, score: -100, isEligible: false, matchReasons: [] };
+        }
+      } else if (q.includes("maharashtra") || q.includes("mh")) {
+        if (schemeStateNorm === "Maharashtra") {
+          score += 40;
+          matchReasons.push("State: Maharashtra");
+        } else if (schemeStateNorm !== "All India") {
+          return { scheme: { ...scheme, isEligible: false }, score: -100, isEligible: false, matchReasons: [] };
+        }
+      } else if (q.includes("delhi") || q.includes("dl")) {
+        if (schemeStateNorm === "Delhi") {
+          score += 40;
+          matchReasons.push("State: Delhi");
+        } else if (schemeStateNorm !== "All India") {
+          return { scheme: { ...scheme, isEligible: false }, score: -100, isEligible: false, matchReasons: [] };
         }
       }
 
-      // Keyword / Intent checks
-      const isStudentQuery = q.includes("student") || q.includes("scholarship") || q.includes("education") || q.includes("school") || q.includes("college");
-      const isPregnantQuery = q.includes("pregnant") || q.includes("maternal") || q.includes("mother") || q.includes("women") || q.includes("mahila");
-      const isSeniorQuery = q.includes("senior") || q.includes("elderly") || q.includes("pension") || q.includes("old age");
-      const isHealthQuery = q.includes("health") || q.includes("insurance") || q.includes("hospital") || q.includes("medical");
-      const isFarmerQuery = q.includes("farmer") || q.includes("kisan") || q.includes("agriculture") || q.includes("crop");
-      const isYouthQuery = q.includes("unemployed") || q.includes("youth") || q.includes("job") || q.includes("skill") || q.includes("employment") || q.includes("berojgar");
-      const isHousingQuery = q.includes("housing") || q.includes("house") || q.includes("awas") || q.includes("home");
+      // Healthcare Intent keywords
+      const isPregnantQuery = q.includes("pregnant") || q.includes("maternal") || q.includes("mother") || q.includes("delivery") || q.includes("janani");
+      const isSeniorQuery = q.includes("senior") || q.includes("elderly") || q.includes("old age") || q.includes("vayoshri") || q.includes("vaya");
+      const isInsuranceQuery = q.includes("insurance") || q.includes("ayushman") || q.includes("cashless") || q.includes("pmjay");
+      const isDisabilityQuery = q.includes("disability") || q.includes("disabled") || q.includes("udid") || q.includes("wheelchair");
+      const isCancerQuery = q.includes("cancer") || q.includes("ran") || q.includes("illness") || q.includes("surgery");
 
-      if (isStudentQuery) {
-        if (catLower.includes("education") || tags.includes("student") || tags.includes("scholarship")) {
-          score += 50;
-          if (q.includes("scholarship")) matchReasons.push("Scholarship");
-          matchReasons.push("Education & Student");
-        }
+      if (isPregnantQuery && (catLower.includes("maternal") || tags.includes("pregnant"))) {
+        score += 40;
+        matchReasons.push("Maternal Healthcare");
+      }
+      if (isSeniorQuery && (catLower.includes("senior") || tags.includes("senior citizen"))) {
+        score += 40;
+        matchReasons.push("Senior Healthcare");
+      }
+      if (isInsuranceQuery && (catLower.includes("insurance") || tags.includes("insurance"))) {
+        score += 40;
+        matchReasons.push("Health Insurance");
+      }
+      if (isDisabilityQuery && (catLower.includes("disability") || tags.includes("disability"))) {
+        score += 40;
+        matchReasons.push("Disability Support");
+      }
+      if (isCancerQuery && (catLower.includes("assistance") || tags.includes("cancer"))) {
+        score += 40;
+        matchReasons.push("Medical Assistance");
       }
 
-      if (isPregnantQuery) {
-        if (catLower.includes("women") || tags.includes("pregnant") || tags.includes("women") || scheme.eligibility?.pregnant) {
-          score += 50;
-          matchReasons.push("Maternal & Women Welfare");
-        }
-      }
-
-      if (isSeniorQuery) {
-        if (catLower.includes("senior") || tags.includes("senior citizen") || tags.includes("pension") || scheme.eligibility?.seniorCitizen) {
-          score += 50;
-          matchReasons.push("Senior Citizens");
-        }
-      }
-
-      if (isHealthQuery) {
-        if (catLower.includes("health") || tags.includes("health") || tags.includes("insurance")) {
-          score += 50;
-          matchReasons.push("Healthcare & Insurance");
-        }
-      }
-
-      if (isFarmerQuery) {
-        if (catLower.includes("farmer") || tags.includes("farmer") || tags.includes("kisan")) {
-          score += 50;
-          matchReasons.push("Farmers & Agriculture");
-        }
-      }
-
-      if (isYouthQuery) {
-        if (catLower.includes("employment") || tags.includes("unemployed") || tags.includes("youth")) {
-          score += 50;
-          matchReasons.push("Employment & Skill");
-        }
-      }
-
-      if (isHousingQuery) {
-        if (catLower.includes("housing") || tags.includes("housing") || tags.includes("awas")) {
-          score += 50;
-          matchReasons.push("Housing Assistance");
-        }
-      }
-
-      // Title & Text exact substring matches
+      // Substring matches
       if (nameLower.includes(q)) {
-        score += 60;
+        score += 50;
         matchReasons.push("Title Match");
       } else {
         const terms = q.split(/\s+/).filter((t) => t.length > 2);
         terms.forEach((term) => {
-          if (nameLower.includes(term)) {
-            score += 20;
-          }
-          if (descLower.includes(term) || benefitLower.includes(term)) {
-            score += 10;
-          }
-          if (tags.some((tag) => tag.includes(term))) {
-            score += 15;
-          }
+          if (nameLower.includes(term)) score += 20;
+          if (descLower.includes(term) || benefitLower.includes(term)) score += 10;
+          if (tags.some((tag) => tag.includes(term))) score += 15;
         });
       }
-    } else {
-      // No query entered: return all valid schemes ordered by form eligibility
-      if (targetState && (schemeStateNorm === targetState || schemeStateNorm === "All India")) {
-        score += 20;
-        matchReasons.push(`State: ${schemeStateNorm}`);
-      }
     }
 
-    // Default match reason if none added
-    if (matchReasons.length === 0 && score > 0) {
-      matchReasons.push(`Category: ${scheme.category || "Government Assistance"}`);
+    // Default match reason
+    if (matchReasons.length === 0 && isEligible) {
+      matchReasons.push(`Healthcare Benefit (${scheme.category || "Government Assistance"})`);
     }
 
-    // Remove duplicates from matchReasons
     const uniqueReasons = Array.from(new Set(matchReasons));
 
     return {
@@ -244,9 +258,9 @@ export function matchAndRankSchemes(
     };
   });
 
-  // Filter out negative scores when search query is entered
-  const filtered = q || selectedCategory
-    ? results.filter((r) => r.score > 15)
+  // Filter out negative/irrelevant scores when query or category is applied
+  const filtered = q || selectedCategory !== "All" || user.state || user.age > 0 || user.income > 0 || user.pregnant || user.disability || user.seniorCitizen
+    ? results.filter((r) => r.score > 0 && r.isEligible)
     : results.filter((r) => r.score >= 0);
 
   // Sort by score descending
@@ -256,5 +270,5 @@ export function matchAndRankSchemes(
 }
 
 export function matchSchemes(user: UserProfile, schemes: Scheme[]): Scheme[] {
-  return matchAndRankSchemes(user, schemes, "", "");
+  return matchAndRankSchemes(user, schemes, "", "All");
 }

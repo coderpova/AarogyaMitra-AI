@@ -39,13 +39,17 @@ export default function EligibilityForm({
           <input
             type="number"
             placeholder="e.g. 25"
+            min="0"
+            max="120"
             value={formData.age || ""}
-            onChange={(e) =>
+            onChange={(e) => {
+              const val = e.target.value === "" ? 0 : Math.max(0, Number(e.target.value));
               setFormData({
                 ...formData,
-                age: e.target.value === "" ? 0 : Number(e.target.value),
-              })
-            }
+                age: val,
+                seniorCitizen: val >= 60 ? true : formData.seniorCitizen,
+              });
+            }}
             className="w-full border rounded-xl p-3 dark:bg-gray-800 dark:text-white border-gray-300 dark:border-gray-700"
           />
         </div>

@@ -2,11 +2,11 @@
   {
     "id": 1,
     "name": "Ayushman Bharat PM-JAY",
-    "description": "Provides cashless health insurance for eligible low-income families across India.",
-    "benefit": "Health insurance coverage up to ₹5,00,000 per family per year for secondary and tertiary care hospitalization.",
-    "category": "Healthcare",
+    "description": "Provides cashless health insurance for eligible low-income families across India for secondary and tertiary care hospitalization.",
+    "benefit": "Health insurance coverage up to ₹5,00,000 per family per year across impaneled public and private hospitals.",
+    "category": "Health Insurance",
     "state": "All India",
-    "tags": ["health", "insurance", "hospital", "medical", "cashless", "treatment"],
+    "tags": ["health", "insurance", "hospital", "medical", "cashless", "treatment", "pmjay"],
     "documents": [
       "Aadhaar Card",
       "Ration Card",
@@ -16,20 +16,17 @@
     "eligibility": {
       "maxIncome": 300000,
       "minAge": 0,
-      "gender": "any",
-      "pregnant": false,
-      "seniorCitizen": false,
-      "disability": false
+      "gender": "any"
     }
   },
   {
     "id": 2,
     "name": "Janani Suraksha Yojana (JSY)",
     "description": "Safe motherhood intervention under the National Health Mission encouraging institutional delivery among pregnant women.",
-    "benefit": "Direct cash assistance up to ₹1,400 for institutional delivery and post-natal care.",
-    "category": "Women & Child",
+    "benefit": "Direct cash assistance up to ₹1,400 for institutional delivery and post-natal care support.",
+    "category": "Maternal & Child Health",
     "state": "All India",
-    "tags": ["women", "pregnant", "maternal", "delivery", "mother", "child"],
+    "tags": ["women", "pregnant", "maternal", "delivery", "mother", "child", "healthcare"],
     "documents": [
       "Aadhaar Card",
       "Pregnancy Registration (MCP Card)",
@@ -44,11 +41,11 @@
   {
     "id": 3,
     "name": "Janani Shishu Suraksha Karyakram (JSSK)",
-    "description": "Free healthcare services for pregnant women and sick newborns in public health institutions.",
-    "benefit": "Free delivery, medicines, diagnostics, food during hospital stay, and free transport to and from hospital.",
-    "category": "Women & Child",
+    "description": "Free healthcare services for pregnant women and sick newborns receiving treatment in public health institutions.",
+    "benefit": "Free delivery, medicines, diagnostics, food during hospital stay, and free emergency referral transport.",
+    "category": "Maternal & Child Health",
     "state": "All India",
-    "tags": ["women", "pregnant", "maternal", "newborn", "free delivery"],
+    "tags": ["women", "pregnant", "maternal", "newborn", "free delivery", "hospitalization"],
     "documents": [
       "Aadhaar Card",
       "Hospital Registration"
@@ -61,79 +58,30 @@
   },
   {
     "id": 4,
-    "name": "National Means-cum-Merit Scholarship Scheme (NMMSS)",
-    "description": "Scholarship for meritorious students from economically weaker sections to arrest drop-out at class VIII.",
-    "benefit": "Scholarship of ₹12,000 per annum (₹1,000 per month) for secondary school education.",
-    "category": "Education",
+    "name": "Pradhan Mantri Surakshit Matritva Abhiyan (PMSMA)",
+    "description": "Comprehensive and quality antenatal care services for pregnant women provided free on the 9th of every month.",
+    "benefit": "Free medical check-ups, specialist consultations, and diagnostic tests for pregnant women in second & third trimesters.",
+    "category": "Maternal & Child Health",
     "state": "All India",
-    "tags": ["student", "scholarship", "education", "school", "merit"],
+    "tags": ["women", "pregnant", "maternal", "antenatal", "checkup", "health"],
     "documents": [
-      "School Marksheet",
-      "Income Certificate",
       "Aadhaar Card",
-      "Bank Account Details"
+      "MCP Registration Card"
     ],
-    "officialLink": "https://scholarships.gov.in",
+    "officialLink": "https://pmsma.nhp.gov.in",
     "eligibility": {
-      "minAge": 12,
-      "maxAge": 18,
-      "maxIncome": 350000,
-      "student": true
+      "gender": "female",
+      "pregnant": true
     }
   },
   {
     "id": 5,
-    "name": "Post-Matric Scholarship for SC/ST/OBC Students",
-    "description": "Financial assistance to students belonging to reserved categories for pursuing higher studies.",
-    "benefit": "Full tuition fee reimbursement and monthly maintenance allowance for diploma, degree, and postgraduate courses.",
-    "category": "Education",
-    "state": "All India",
-    "tags": ["student", "scholarship", "education", "college", "university", "higher study"],
-    "documents": [
-      "Caste Certificate",
-      "Income Certificate",
-      "College Admission Receipt",
-      "Aadhaar Card"
-    ],
-    "officialLink": "https://scholarships.gov.in",
-    "eligibility": {
-      "minAge": 15,
-      "maxAge": 30,
-      "maxIncome": 250000,
-      "student": true
-    }
-  },
-  {
-    "id": 6,
-    "name": "UP Scholarship & Fee Reimbursement Scheme",
-    "description": "State scholarship for Pre-Matric and Post-Matric students residing in Uttar Pradesh.",
-    "benefit": "Financial aid and complete course fee reimbursement for school and college students in Uttar Pradesh.",
-    "category": "Education",
-    "state": "Uttar Pradesh",
-    "tags": ["uttar pradesh", "up", "student", "scholarship", "education", "school", "college"],
-    "documents": [
-      "UP Domicile Certificate",
-      "Income Certificate",
-      "Caste Certificate",
-      "Aadhaar Card",
-      "Fee Receipt"
-    ],
-    "officialLink": "https://scholarship.up.gov.in",
-    "eligibility": {
-      "minAge": 10,
-      "maxAge": 30,
-      "maxIncome": 200000,
-      "student": true
-    }
-  },
-  {
-    "id": 7,
     "name": "National Programme for Health Care of the Elderly (NPHCE)",
-    "description": "Dedicated healthcare and wellness support system for senior citizens at primary and district levels.",
+    "description": "Dedicated healthcare and wellness support system for senior citizens at primary and district hospital levels.",
     "benefit": "Free geriatric care, specialized health check-ups, free medicines, and dedicated senior citizen OPD wards.",
-    "category": "Senior Citizen",
+    "category": "Senior Healthcare",
     "state": "All India",
-    "tags": ["senior citizen", "elderly", "old age", "health", "geriatric"],
+    "tags": ["senior citizen", "elderly", "old age", "health", "geriatric", "hospital"],
     "documents": [
       "Age Proof (Aadhaar / Voter ID)",
       "Medical History Records"
@@ -145,102 +93,131 @@
     }
   },
   {
-    "id": 8,
-    "name": "Indira Gandhi National Old Age Pension Scheme (IGNOAPS)",
-    "description": "Monthly pension for senior citizens belonging to below poverty line (BPL) households.",
-    "benefit": "Monthly pension of ₹500 to ₹1,000 credited directly to beneficiary bank account.",
-    "category": "Senior Citizen",
+    "id": 6,
+    "name": "Ayushman Vaya Vandana Card (PM-JAY 70+)",
+    "description": "Universal health coverage for all senior citizens aged 70 and above across India regardless of socio-economic status.",
+    "benefit": "Free cashless health insurance cover up to ₹5,00,000 per year for senior citizens aged 70+ for hospital treatment.",
+    "category": "Senior Healthcare",
     "state": "All India",
-    "tags": ["senior citizen", "pension", "elderly", "old age", "bpl", "financial assistance"],
+    "tags": ["senior citizen", "elderly", "70+", "health insurance", "ayushman", "hospitalization"],
     "documents": [
-      "Age Proof (60+ years)",
-      "BPL Card / Income Certificate",
-      "Aadhaar Card",
-      "Bank Passbook"
+      "Aadhaar Card (with verified age 70+)",
+      "Mobile Number"
     ],
-    "officialLink": "https://nsap.nic.in",
+    "officialLink": "https://beneficiary.nha.gov.in",
     "eligibility": {
-      "minAge": 60,
-      "maxIncome": 150000,
+      "minAge": 70,
       "seniorCitizen": true
     }
   },
   {
-    "id": 9,
-    "name": "PM Kisan Samman Nidhi (PM-KISAN)",
-    "description": "Income support scheme for small and marginal landholding farmer families across India.",
-    "benefit": "Financial benefit of ₹6,000 per year transferred in three equal installments of ₹2,000 directly to bank accounts.",
-    "category": "Farmers",
+    "id": 7,
+    "name": "Rashtriya Vayoshri Yojana (RVY)",
+    "description": "Government scheme providing physical aids and assisted-living devices for low-income senior citizens and disabled individuals.",
+    "benefit": "Free supply of hearing aids, wheelchairs, walking sticks, spectacles, and orthopedic supportive devices.",
+    "category": "Disability Support",
     "state": "All India",
-    "tags": ["farmer", "farmers", "kisan", "agriculture", "crop", "land"],
+    "tags": ["senior citizen", "disability", "disabled", "medical aids", "wheelchair", "hearing aid"],
     "documents": [
-      "Landholding Ownership Papers (Khasra/Khatauni)",
-      "Aadhaar Card",
-      "Bank Account Details"
+      "Age Proof / Disability Certificate",
+      "BPL / Income Certificate",
+      "Aadhaar Card"
     ],
-    "officialLink": "https://pmkisan.gov.in",
+    "officialLink": "https://socialjustice.gov.in",
     "eligibility": {
-      "farmer": true
+      "minAge": 60,
+      "maxIncome": 200000,
+      "disability": true
+    }
+  },
+  {
+    "id": 8,
+    "name": "Unique Disability ID (UDID) Health Support",
+    "description": "Universal healthcare access and specialized medical assistance for persons with disabilities (PwD) across India.",
+    "benefit": "Free assistive devices, specialized medical rehabilitation, concessional treatment in government hospitals, and health grants.",
+    "category": "Disability Support",
+    "state": "All India",
+    "tags": ["disability", "disabled", "pwd", "health", "rehabilitation", "medical aid"],
+    "documents": [
+      "Disability Certificate (40%+ disability)",
+      "Aadhaar Card",
+      "Passport Size Photo"
+    ],
+    "officialLink": "https://www.swavlambancard.gov.in",
+    "eligibility": {
+      "disability": true
+    }
+  },
+  {
+    "id": 9,
+    "name": "UP Mukhyamantri Jan Arogya Yojana",
+    "description": "Uttar Pradesh state health scheme providing financial protection for medical treatment to vulnerable UP families.",
+    "benefit": "Cashless hospitalization coverage up to ₹5,00,000 per family per year for secondary and tertiary care in UP.",
+    "category": "State Health Schemes",
+    "state": "Uttar Pradesh",
+    "tags": ["uttar pradesh", "up", "health insurance", "hospitalization", "cashless", "state scheme"],
+    "documents": [
+      "UP Domicile Certificate",
+      "Ration Card / Income Certificate",
+      "Aadhaar Card"
+    ],
+    "officialLink": "https://sec.up.gov.in",
+    "eligibility": {
+      "maxIncome": 250000
     }
   },
   {
     "id": 10,
-    "name": "Pradhan Mantri Awas Yojana (PMAY - Urban & Gramin)",
-    "description": "Housing assistance scheme to ensure affordable shelter with basic amenities for low income families.",
-    "benefit": "Interest subsidy up to 6.5% on housing loans or direct construction grant of up to ₹2.5 Lakhs.",
-    "category": "Housing",
-    "state": "All India",
-    "tags": ["housing", "house", "awas", "home", "shelter", "construction"],
+    "name": "Mahatma Jyotirao Phule Jan Arogya Yojana (MJPJAY)",
+    "description": "Maharashtra government health insurance scheme offering cashless medical treatment for identified surgeries & therapies.",
+    "benefit": "Cashless hospitalization up to ₹5,00,000 per family per year in empanelled hospitals across Maharashtra.",
+    "category": "State Health Schemes",
+    "state": "Maharashtra",
+    "tags": ["maharashtra", "mh", "health insurance", "hospitalization", "surgery", "cashless"],
     "documents": [
-      "Aadhaar Card",
-      "Income Certificate",
-      "Property/Land Document",
-      "Bank Passbook"
+      "Maharashtra Domicile Certificate",
+      "Ration Card (Yellow/Orange)",
+      "Aadhaar Card"
     ],
-    "officialLink": "https://pmaymis.gov.in",
+    "officialLink": "https://www.jeevandayee.gov.in",
     "eligibility": {
-      "maxIncome": 600000
+      "maxIncome": 300000
     }
   },
   {
     "id": 11,
-    "name": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
-    "description": "Skill certification scheme enabling unemployed youth to take up industry-relevant skill training.",
-    "benefit": "Free short-term skill training, government certification, placement assistance, and stipend.",
-    "category": "Employment",
-    "state": "All India",
-    "tags": ["unemployed", "youth", "job", "skill", "employment", "training"],
+    "name": "Delhi Arogya Kosh (DAK)",
+    "description": "Financial medical assistance scheme by Delhi Government for residents undergoing costly surgeries and treatments.",
+    "benefit": "Financial grant up to ₹5,00,000 for specialized surgical procedures, diagnostic tests, and life-saving treatments in Delhi.",
+    "category": "Medical Assistance",
+    "state": "Delhi",
+    "tags": ["delhi", "dl", "medical assistance", "treatment", "surgery", "hospital grant"],
     "documents": [
-      "Aadhaar Card",
-      "Educational Qualification Certificate",
-      "Bank Passbook"
+      "Delhi Voter ID / Domicile Proof",
+      "Income Certificate",
+      "Hospital Treatment Estimate"
     ],
-    "officialLink": "https://www.pmkvyofficial.org",
+    "officialLink": "https://health.delhi.gov.in",
     "eligibility": {
-      "minAge": 18,
-      "maxAge": 45,
-      "unemployed": true
+      "maxIncome": 300000
     }
   },
   {
     "id": 12,
-    "name": "UP Mukhyamantri Yuva Swarozgar Yojana",
-    "description": "Financial assistance and subsidy for educated unemployed youth of Uttar Pradesh to start their own enterprises.",
-    "benefit": "Loan up to ₹25 Lakhs for industry sector and ₹10 Lakhs for service sector with up to 25% margin money grant.",
-    "category": "Employment",
-    "state": "Uttar Pradesh",
-    "tags": ["uttar pradesh", "up", "unemployed", "youth", "employment", "self employment", "business loan"],
+    "name": "Health Minister's Cancer Patient Fund (HMCPF - RAN)",
+    "description": "Financial assistance under Rashtriya Arogya Nidhi for low-income patients suffering from cancer and critical illnesses.",
+    "benefit": "Direct financial aid up to ₹5,00,000 for cancer treatment in Regional Cancer Centres and super-specialty government hospitals.",
+    "category": "Medical Assistance",
+    "state": "All India",
+    "tags": ["cancer", "treatment", "medical assistance", "critical illness", "hospital grant", "ran"],
     "documents": [
-      "UP Domicile Certificate",
-      "High School Marksheet",
-      "Project Report",
+      "Income Certificate (Below Poverty Line)",
+      "Medical Certificate / Cancer Diagnosis Report",
       "Aadhaar Card"
     ],
-    "officialLink": "https://diupmsme.upsdc.gov.in",
+    "officialLink": "https://main.mohfw.gov.in",
     "eligibility": {
-      "minAge": 18,
-      "maxAge": 40,
-      "unemployed": true
+      "maxIncome": 200000
     }
   }
 ]

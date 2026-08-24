@@ -108,8 +108,8 @@ export default function ReportAnalyzerPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(t("reportAnalyzerExt.errSize"));
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("This file is too large to analyze. Please upload a smaller medical report (under 4 MB).");
       return;
     }
 
@@ -140,38 +140,74 @@ export default function ReportAnalyzerPage() {
       return;
     }
 
+    if (selectedFile && selectedFile.size > 4 * 1024 * 1024) {
+      toast.error("This file is too large to analyze. Please upload a smaller medical report (under 4 MB).");
+      return;
+    }
+
     setLoading(true);
     setAnalysis(null);
 
     try {
-      let imageBase64Payload: string | null = null;
-      if (selectedFile) {
-        imageBase64Payload = await fileToBase64(selectedFile);
-      } else if (imagePreview && !imagePreview.startsWith("blob:")) {
-        imageBase64Payload = imagePreview;
-      }
-
       const token = localStorage.getItem("token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+      const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch("/api/report-analyzer", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          reportText: text,
-          imageBase64: imageBase64Payload,
-          language: language,
-          isSample: isSample === true,
-        }),
-      });
+      let res: Response;
 
-      const data = await res.json();
-      
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        if (text && text.trim()) {
+          formData.append("reportText", text);
+        }
+        formData.append("language", language);
+        if (isSample === true) {
+          formData.append("isSample", "true");
+        }
+
+        res = await fetch("/api/report-analyzer", {
+          method: "POST",
+          headers, // Browser sets multipart boundary automatically
+          body: formData,
+        });
+      } else {
+        headers["Content-Type"] = "application/json";
+        let imageBase64Payload: string | null = null;
+        if (imagePreview && !imagePreview.startsWith("blob:")) {
+          imageBase64Payload = imagePreview;
+        }
+
+        res = await fetch("/api/report-analyzer", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            reportText: text,
+            imageBase64: imageBase64Payload,
+            language: language,
+            isSample: isSample === true,
+          }),
+        });
+      }
+
+      if (res.status === 413) {
+        toast.error("The uploaded report is too large to process. Please upload a smaller PDF or image.");
+        setLoading(false);
+        return;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any = {};
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const textErr = await res.text();
+        data = { error: textErr || "Server error occurred. Please try again." };
+      }
+
       if (!res.ok) {
         console.log(`[ReportAnalyzer UI] Status: ${res.status}`);
         console.log(`[ReportAnalyzer UI] Error: ${data.error || data.message}`);
@@ -186,7 +222,7 @@ export default function ReportAnalyzerPage() {
       }
     } catch (error) {
       console.error(error);
-      toast.error(t("common.error"));
+      toast.error("Failed to process medical report. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }

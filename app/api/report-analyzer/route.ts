@@ -336,103 +336,125 @@ export async function POST(request: Request) {
     await connectDB();
 
     const userId = getAuthUserId(request) || "guest";
+    const contentType = (request.headers.get("content-type") || "").toLowerCase();
 
-    const body = await request.json();
-    let { reportText, imageBase64 } = body;
-    const { language: bodyLang, isSample } = body;
-
-    let mimeType = "unknown";
-    let bytes = 0;
-    if (imageBase64) {
-      mimeType = imageBase64.split(";")[0];
-      bytes = imageBase64.length;
-    }
-    
-    console.log(`[ReportAnalyzer] mime=${mimeType}`);
-    console.log(`[ReportAnalyzer] bytes=${bytes}`);
+    let reportText = "";
+    let imageBase64: string | null = null;
+    let bodyLang = "en";
+    let isSample = false;
+    let pdfBuffer: Buffer | null = null;
 
     let extractedImages: { base64: string; mimeType: string }[] = [];
-    
-    // 1. PDF HANDLING - TWO STAGE STRATEGY (TEXT PDF -> SCANNED VISION FALLBACK)
-    if (imageBase64 && imageBase64.startsWith("data:application/pdf")) {
-      try {
-        const base64Data = imageBase64.split(",")[1];
-        const pdfBuffer = Buffer.from(base64Data, "base64");
-        
-        const isPdf = pdfBuffer.slice(0, 4).toString() === "%PDF";
-        if (!isPdf) {
+
+    // Stage 1: Parse Request Payload (FormData vs JSON)
+    if (contentType.includes("multipart/form-data") || contentType.includes("form-data")) {
+      const formData = await request.formData();
+      const file = formData.get("file") as File | null;
+      reportText = (formData.get("reportText") as string) || "";
+      bodyLang = (formData.get("language") as string) || "en";
+      isSample = formData.get("isSample") === "true";
+
+      if (file) {
+        if (file.size > 4.5 * 1024 * 1024) {
           return NextResponse.json(
-            { error: "The uploaded file is not a valid PDF." },
-            { status: 400 }
+            { error: "The uploaded report is too large to process. Please upload a smaller file (under 4 MB)." },
+            { status: 413 }
           );
         }
 
-        let pdfText = "";
-        try {
-          const pdfParse = (await import("pdf-parse")).default;
-          const pdfData = await pdfParse(pdfBuffer);
-          pdfText = (pdfData.text || "").trim();
-        } catch (parseErr) {
-          console.log("[ReportAnalyzer] pdf-parse text extraction warning:", parseErr);
-        }
+        const uploadedMime = (file.type || "").toLowerCase();
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        console.log(`[ReportAnalyzer] pdfTextLength=${pdfText.length}`);
-        
-        // Path A: Text-based PDF (at least 10 chars with numbers or medical text)
-        const hasUsableText = pdfText.length >= 10 && (/[0-9]/.test(pdfText) || /[a-zA-Z]{3,}/.test(pdfText));
-        
-        if (hasUsableText) {
-          console.log(`[ReportAnalyzer] pdfType=TEXT_PDF`);
-          reportText = (reportText ? reportText + "\n" : "") + pdfText;
-          
-          // Also extract embedded page images as secondary fallback
-          try {
-            const images = await extractImagesFromPDF(pdfBuffer);
-            if (images.length > 0) {
-              extractedImages = images;
-            }
-          } catch (e) {
-            console.log("[ReportAnalyzer] PDF image secondary extraction passed:", e);
-          }
-          imageBase64 = null;
-        } 
-        // Path B: Scanned/Image-based PDF
-        else {
-          console.log(`[ReportAnalyzer] pdfType=SCANNED_PDF`);
-          const images = await extractImagesFromPDF(pdfBuffer);
-          
-          if (images.length > 0) {
-            extractedImages = images;
-            console.log(`[ReportAnalyzer] extractedImages=${images.length}`);
-            imageBase64 = null;
-          } else {
-            console.log(`[ReportAnalyzer] Extraction failed: No usable text layer or scanned images found in PDF.`);
-            return NextResponse.json(
-              { error: "Unable to reliably read this medical report PDF. Please ensure the document is clear and readable." },
-              { status: 400 }
-            );
-          }
+        const isPdfMagic = buffer.slice(0, 4).toString() === "%PDF";
+        if (uploadedMime.includes("pdf") || isPdfMagic) {
+          pdfBuffer = buffer;
+        } else if (
+          uploadedMime.includes("image") ||
+          uploadedMime.includes("octet-stream") ||
+          uploadedMime === ""
+        ) {
+          let mime = uploadedMime || "image/jpeg";
+          if (mime === "image/jpg" || mime === "jpg" || mime.includes("octet-stream")) mime = "image/jpeg";
+          extractedImages.push({
+            base64: buffer.toString("base64"),
+            mimeType: mime,
+          });
         }
-      } catch (pdfErr) {
-        console.error("PDF parse error:", pdfErr);
+      }
+    } else {
+      // JSON body fallback
+      const body = await request.json();
+      reportText = body.reportText || "";
+      imageBase64 = body.imageBase64 || null;
+      bodyLang = body.language || "en";
+      isSample = body.isSample === true;
+
+      if (imageBase64 && imageBase64.startsWith("data:application/pdf")) {
+        const base64Data = imageBase64.split(",")[1];
+        pdfBuffer = Buffer.from(base64Data, "base64");
+      } else if (
+        imageBase64 &&
+        (imageBase64.startsWith("data:image/") || imageBase64.startsWith("data:application/octet-stream"))
+      ) {
+        let mime = imageBase64.split(";")[0].split(":")[1] || "image/jpeg";
+        mime = mime.toLowerCase().trim();
+        if (mime === "image/jpg" || mime === "jpg" || mime.includes("octet-stream")) mime = "image/jpeg";
+        const base64Data = imageBase64.split(",")[1];
+        if (base64Data && base64Data.length > 100) {
+          extractedImages.push({ base64: base64Data.replace(/\s+/g, ""), mimeType: mime });
+        }
+      }
+    }
+
+    // Stage 2: PDF Processing (Text PDF -> Scanned PDF Vision Fallback)
+    if (pdfBuffer) {
+      const isPdf = pdfBuffer.slice(0, 4).toString() === "%PDF";
+      if (!isPdf) {
         return NextResponse.json(
-          { error: "Failed to read the PDF file. Please upload a valid document or image." },
+          { error: "The uploaded file is not a valid PDF." },
           { status: 400 }
         );
       }
-    } 
-    // Image Upload Handling (JPG, PNG, WebP)
-    else if (imageBase64 && (imageBase64.startsWith("data:image/") || imageBase64.startsWith("data:application/octet-stream"))) {
-      let mime = imageBase64.split(";")[0].split(":")[1] || "image/jpeg";
-      mime = mime.toLowerCase().trim();
-      if (mime === "image/jpg" || mime === "jpg") mime = "image/jpeg";
-      if (mime === "application/octet-stream") mime = "image/jpeg";
 
-      const base64Data = imageBase64.split(",")[1];
-      if (base64Data && base64Data.length > 100) {
-        extractedImages.push({ base64: base64Data.replace(/\s+/g, ""), mimeType: mime });
+      let pdfText = "";
+      try {
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfData = await pdfParse(pdfBuffer);
+        pdfText = (pdfData.text || "").trim();
+      } catch (parseErr) {
+        console.log("[ReportAnalyzer] pdf-parse text extraction warning:", parseErr);
       }
-      imageBase64 = null;
+
+      console.log(`[ReportAnalyzer] pdfTextLength=${pdfText.length}`);
+
+      const hasUsableText = pdfText.length >= 10 && (/[0-9]/.test(pdfText) || /[a-zA-Z]{3,}/.test(pdfText));
+
+      if (hasUsableText) {
+        console.log(`[ReportAnalyzer] pdfType=TEXT_PDF`);
+        reportText = (reportText ? reportText + "\n" : "") + pdfText;
+        try {
+          const images = await extractImagesFromPDF(pdfBuffer);
+          if (images.length > 0) {
+            extractedImages = images;
+          }
+        } catch (e) {
+          console.log("[ReportAnalyzer] PDF image secondary extraction passed:", e);
+        }
+      } else {
+        console.log(`[ReportAnalyzer] pdfType=SCANNED_PDF`);
+        const images = await extractImagesFromPDF(pdfBuffer);
+        if (images.length > 0) {
+          extractedImages = images;
+          console.log(`[ReportAnalyzer] extractedImages=${images.length}`);
+        } else {
+          console.log(`[ReportAnalyzer] Extraction failed: No usable text layer or scanned images found in PDF.`);
+          return NextResponse.json(
+            { error: "Unable to reliably read this medical report PDF. Please ensure the document is clear and contains medical lab parameters." },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     let targetLang = bodyLang || "en";
@@ -463,7 +485,6 @@ export async function POST(request: Request) {
         extractedDataJson = await extractMedicalDataFromImage(extractedImages, groq);
       } catch (visionErr: unknown) {
         console.error("Vision API Error:", visionErr);
-        // If vision failed but reportText was extracted from PDF text layer, fallback to text extraction
         if (!reportText || reportText.trim().length < 10) {
           const err = visionErr as { message?: string; status?: number; error?: { error?: { code?: string; message?: string } } };
           let errorMessage = "Unable to extract readable medical information from this report. Please upload a clearer PDF/image.";

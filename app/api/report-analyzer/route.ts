@@ -188,6 +188,33 @@ function determineStatus(name: string | null | undefined, valueStr: string | nul
   return "Unknown";
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseJsonSafely(rawText: string): any {
+  if (!rawText || !rawText.trim()) return {};
+
+  let cleaned = rawText.trim();
+
+  // Strip Markdown JSON fences if present
+  cleaned = cleaned.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+  // Locate outer JSON object boundaries { ... }
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+
+  // Normalize harmless formatting issues like trailing commas before braces/brackets
+  cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return {};
+  }
+}
+
 interface ExtractedReportData {
   reportTitle: string | null;
   reportDate: string | null;
@@ -203,7 +230,7 @@ interface ExtractedReportData {
   rawSummary: string;
 }
 
-// Helper function for Vision API with normalized MIME types and multi-page batching
+// Helper function for Vision API with strict system prompt, parseJsonSafely, and 1-retry fallback
 async function extractMedicalDataFromImage(extractedImages: { base64: string; mimeType: string }[], groqInstance: Groq) {
   if (extractedImages.length > 5) {
     extractedImages = extractedImages.slice(0, 5);
@@ -211,30 +238,45 @@ async function extractMedicalDataFromImage(extractedImages: { base64: string; mi
   }
 
   console.log(`[ReportAnalyzer] visionBatch=${extractedImages.length}`);
-  const extractionPrompt = `
-You are a highly accurate Medical Lab Report Data Extractor.
-Extract the raw data from the provided medical report images. Do NOT invent any values.
-If a field is not visible, use null.
-Return STRICT JSON ONLY.
+  
+  const systemPrompt = `You are a medical laboratory report data extraction system.
 
-JSON Schema:
+Your ONLY task is to extract clearly visible laboratory information from the provided medical report image.
+
+Return EXACTLY ONE valid JSON object.
+
+Do not return Markdown.
+Do not use \`\`\`json.
+Do not add explanations.
+Do not add introductory text.
+Do not add text after the JSON object.
+
+Do not invent values.
+Do not guess unreadable values.
+
+Preserve the exact numerical value and unit visible in the report.
+
+If a value cannot be reliably read, represent it using the allowed null/unknown representation defined by the output format.
+
+Follow the required JSON field names and data types exactly.`;
+
+  const extractionPrompt = `Extract medical report parameters into this exact JSON structure:
 {
-  "reportTitle": "Title of the report or test",
-  "reportDate": "Date on report",
-  "patientName": "Name of patient",
+  "reportTitle": null,
+  "reportDate": null,
+  "patientName": null,
   "parameters": [
     {
       "name": "Parameter Name",
-      "value": "Value",
-      "unit": "Unit if present",
-      "referenceRange": "Reference range if present",
-      "status": "e.g., Normal, High, Low"
+      "value": "Observed Value",
+      "unit": "Unit or null",
+      "referenceRange": "Reference range or null",
+      "status": "Normal, High, Low, Critical, or Unknown"
     }
   ],
-  "observations": ["Any other text notes"],
-  "rawSummary": "A brief summary of what the report text contains"
-}
-`;
+  "observations": [],
+  "rawSummary": "Brief summary of test findings"
+}`;
   
   const extractedDataJson: ExtractedReportData = {
     reportTitle: null,
@@ -259,28 +301,68 @@ JSON Schema:
       };
     });
 
-    const visionCompletion = await groqInstance.chat.completions.create({
-      model: getGroqModel(),
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text" as const, text: extractionPrompt },
-            ...imageContents
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 1500,
-      response_format: { type: "json_object" }
-    });
+    let rawExtraction = "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let batchJson: any = null;
 
-    const rawExtraction = visionCompletion.choices[0]?.message?.content || "{}";
-    console.log(`[ReportAnalyzer] visionResponseLength=${rawExtraction.length}`);
-    const cleanExtractionJson = rawExtraction.replace(/```json/g, "").replace(/```/g, "").trim();
-    const batchJson = JSON.parse(cleanExtractionJson);
+    // Primary Attempt: Strict JSON Mode
+    try {
+      const visionCompletion = await groqInstance.chat.completions.create({
+        model: getGroqModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text" as const, text: extractionPrompt },
+              ...imageContents
+            ]
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 1500,
+        response_format: { type: "json_object" }
+      });
+
+      rawExtraction = visionCompletion.choices[0]?.message?.content || "";
+      console.log(`[ReportAnalyzer] visionPrimaryResponseLength=${rawExtraction.length}`);
+      batchJson = parseJsonSafely(rawExtraction);
+    } catch (primaryErr: unknown) {
+      console.log(`[ReportAnalyzer] Vision structured-output primary attempt failed. Initiating 1 fallback retry.`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pErr = primaryErr as any;
+      if (pErr?.error?.error?.failed_generation) {
+        console.log(`[ReportAnalyzer] Vision failed_generation detected in primary attempt.`);
+      }
+
+      // Retry Attempt: Fallback WITHOUT strict response_format requirement
+      try {
+        const fallbackCompletion = await groqInstance.chat.completions.create({
+          model: getGroqModel(),
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                { type: "text" as const, text: extractionPrompt },
+                ...imageContents
+              ]
+            }
+          ],
+          temperature: 0.1,
+          max_tokens: 1500
+        });
+
+        rawExtraction = fallbackCompletion.choices[0]?.message?.content || "";
+        console.log(`[ReportAnalyzer] visionRetryResponseLength=${rawExtraction.length}`);
+        batchJson = parseJsonSafely(rawExtraction);
+      } catch (retryErr) {
+        console.error(`[ReportAnalyzer] Vision fallback retry failed:`, retryErr);
+        throw primaryErr; // Throw original primary error for POST handler classification
+      }
+    }
     
-    if (batchJson.parameters && Array.isArray(batchJson.parameters)) {
+    if (batchJson && batchJson.parameters && Array.isArray(batchJson.parameters)) {
       for (const param of batchJson.parameters) {
         if (!param || !param.name) continue;
         const key = `${String(param.name).toLowerCase().trim()}_${String(param.value || "").toLowerCase().trim()}`;
@@ -290,13 +372,13 @@ JSON Schema:
         }
       }
     }
-    if (batchJson.observations && Array.isArray(batchJson.observations)) {
+    if (batchJson && batchJson.observations && Array.isArray(batchJson.observations)) {
       extractedDataJson.observations.push(...batchJson.observations);
     }
-    if (batchJson.reportTitle && !extractedDataJson.reportTitle) extractedDataJson.reportTitle = batchJson.reportTitle;
-    if (batchJson.reportDate && !extractedDataJson.reportDate) extractedDataJson.reportDate = batchJson.reportDate;
-    if (batchJson.patientName && !extractedDataJson.patientName) extractedDataJson.patientName = batchJson.patientName;
-    if (batchJson.rawSummary) extractedDataJson.rawSummary += (extractedDataJson.rawSummary ? " " : "") + batchJson.rawSummary;
+    if (batchJson && batchJson.reportTitle && !extractedDataJson.reportTitle) extractedDataJson.reportTitle = batchJson.reportTitle;
+    if (batchJson && batchJson.reportDate && !extractedDataJson.reportDate) extractedDataJson.reportDate = batchJson.reportDate;
+    if (batchJson && batchJson.patientName && !extractedDataJson.patientName) extractedDataJson.patientName = batchJson.patientName;
+    if (batchJson && batchJson.rawSummary) extractedDataJson.rawSummary += (extractedDataJson.rawSummary ? " " : "") + batchJson.rawSummary;
   }
   
   console.log(`[ReportAnalyzer] structuredParameters=${extractedDataJson.parameters.length}`);
@@ -487,15 +569,13 @@ export async function POST(request: Request) {
         console.error("Vision API Error:", visionErr);
         if (!reportText || reportText.trim().length < 10) {
           const err = visionErr as { message?: string; status?: number; error?: { error?: { code?: string; message?: string } } };
-          let errorMessage = "Unable to extract readable medical information from this report. Please upload a clearer PDF/image.";
+          let errorMessage = "The report was received, but its information could not be structured reliably. Please try again with a clearer image.";
           let statusCode = 400;
           if (err?.error?.error?.code === 'rate_limit_exceeded' || err?.status === 429) {
             errorMessage = "This medical report is too long and exceeds processing token limits. Please upload a shorter report or fewer pages.";
           } else if (err?.error?.error?.code === 'model_not_found' || err?.status === 404 || err?.status === 500 || err?.status === 503) {
-            errorMessage = "Report analysis service is currently experiencing technical difficulties. Please try again shortly.";
+            errorMessage = "The AI analysis service is temporarily unavailable. Please try again.";
             statusCode = 500;
-          } else if (err?.message) {
-            errorMessage = "Report analysis failed during image processing. " + (err.error?.error?.message || err.message);
           }
           return NextResponse.json({ error: errorMessage }, { status: statusCode });
         }
@@ -543,8 +623,7 @@ ${reportText}
         });
 
         const rawExtraction = textExtraction.choices[0]?.message?.content || "{}";
-        const cleanExtractionJson = rawExtraction.replace(/```json/g, "").replace(/```/g, "").trim();
-        extractedDataJson = JSON.parse(cleanExtractionJson);
+        extractedDataJson = parseJsonSafely(rawExtraction);
         console.log(`[ReportAnalyzer] textStructuredParameters=${extractedDataJson.parameters?.length || 0}`);
       } catch (textExtractErr: unknown) {
         console.error("Text Extraction Error:", textExtractErr);
@@ -765,8 +844,7 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
       });
 
       const rawAnalysis = analysisCompletion.choices[0]?.message?.content || "{}";
-      const cleanJson = rawAnalysis.replace(/```json/g, "").replace(/```/g, "").trim();
-      const explanationResult = JSON.parse(cleanJson);
+      const explanationResult = parseJsonSafely(rawAnalysis);
 
       // Merge and enforce deterministic values/statuses
       const finalParameters = normalizedParameters.map(normParam => {

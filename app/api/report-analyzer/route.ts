@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import ReportHistory from "@/models/ReportHistory";
 import User from "@/models/User";
 import { extractImagesFromPDF } from "@/lib/pdfImageExtractor";
-import { getAuthUserId, getJwtSecret } from "@/lib/jwtHelper";
+import { getAuthUserId } from "@/lib/jwtHelper";
 import { getGroqModel, getGroqClient } from "@/lib/groqConfig";
 
 const groq = getGroqClient();
@@ -204,11 +203,11 @@ interface ExtractedReportData {
   rawSummary: string;
 }
 
-// Helper function for Vision API as requested
+// Helper function for Vision API with normalized MIME types and multi-page batching
 async function extractMedicalDataFromImage(extractedImages: { base64: string; mimeType: string }[], groqInstance: Groq) {
-  if (extractedImages.length > 2) {
-    extractedImages = extractedImages.slice(0, 2);
-    console.log(`[ReportAnalyzer] Truncated extractedImages to 2 to prevent token rate limits.`);
+  if (extractedImages.length > 5) {
+    extractedImages = extractedImages.slice(0, 5);
+    console.log(`[ReportAnalyzer] Truncated extractedImages to 5 pages/images.`);
   }
 
   console.log(`[ReportAnalyzer] visionBatch=${extractedImages.length}`);
@@ -246,13 +245,19 @@ JSON Schema:
     rawSummary: ""
   };
 
+  const seenParams = new Set<string>();
+
   const BATCH_SIZE = 2; // Groq limit prevention
   for (let i = 0; i < extractedImages.length; i += BATCH_SIZE) {
     const batchImages = extractedImages.slice(i, i + BATCH_SIZE);
-    const imageContents = batchImages.map(img => ({
-      type: "image_url" as const,
-      image_url: { url: `data:${img.mimeType};base64,${img.base64}` }
-    }));
+    const imageContents = batchImages.map(img => {
+      let mime = img.mimeType || "image/jpeg";
+      if (mime.toLowerCase() === "image/jpg" || mime.toLowerCase() === "jpg") mime = "image/jpeg";
+      return {
+        type: "image_url" as const,
+        image_url: { url: `data:${mime};base64,${img.base64}` }
+      };
+    });
 
     const visionCompletion = await groqInstance.chat.completions.create({
       model: getGroqModel(),
@@ -276,10 +281,17 @@ JSON Schema:
     const batchJson = JSON.parse(cleanExtractionJson);
     
     if (batchJson.parameters && Array.isArray(batchJson.parameters)) {
-        extractedDataJson.parameters.push(...batchJson.parameters);
+      for (const param of batchJson.parameters) {
+        if (!param || !param.name) continue;
+        const key = `${String(param.name).toLowerCase().trim()}_${String(param.value || "").toLowerCase().trim()}`;
+        if (!seenParams.has(key)) {
+          seenParams.add(key);
+          extractedDataJson.parameters.push(param);
+        }
+      }
     }
     if (batchJson.observations && Array.isArray(batchJson.observations)) {
-        extractedDataJson.observations.push(...batchJson.observations);
+      extractedDataJson.observations.push(...batchJson.observations);
     }
     if (batchJson.reportTitle && !extractedDataJson.reportTitle) extractedDataJson.reportTitle = batchJson.reportTitle;
     if (batchJson.reportDate && !extractedDataJson.reportDate) extractedDataJson.reportDate = batchJson.reportDate;
@@ -290,6 +302,7 @@ JSON Schema:
   console.log(`[ReportAnalyzer] structuredParameters=${extractedDataJson.parameters.length}`);
   return extractedDataJson;
 }
+
 // GET: Fetch report history
 export async function GET(request: Request) {
   try {
@@ -340,7 +353,7 @@ export async function POST(request: Request) {
 
     let extractedImages: { base64: string; mimeType: string }[] = [];
     
-    // 1. PDF HANDLING - TWO PATHS
+    // 1. PDF HANDLING - TWO STAGE STRATEGY (TEXT PDF -> SCANNED VISION FALLBACK)
     if (imageBase64 && imageBase64.startsWith("data:application/pdf")) {
       try {
         const base64Data = imageBase64.split(",")[1];
@@ -354,21 +367,36 @@ export async function POST(request: Request) {
           );
         }
 
-        const pdfParse = (await import("pdf-parse")).default;
-        const pdfData = await pdfParse(pdfBuffer);
+        let pdfText = "";
+        try {
+          const pdfParse = (await import("pdf-parse")).default;
+          const pdfData = await pdfParse(pdfBuffer);
+          pdfText = (pdfData.text || "").trim();
+        } catch (parseErr) {
+          console.log("[ReportAnalyzer] pdf-parse text extraction warning:", parseErr);
+        }
+
+        console.log(`[ReportAnalyzer] pdfTextLength=${pdfText.length}`);
         
-        const extracted = pdfData.text || "";
-        const cleanedText = extracted.trim();
+        // Path A: Text-based PDF (at least 10 chars with numbers or medical text)
+        const hasUsableText = pdfText.length >= 10 && (/[0-9]/.test(pdfText) || /[a-zA-Z]{3,}/.test(pdfText));
         
-        console.log(`[ReportAnalyzer] pdfTextLength=${cleanedText.length}`);
-        
-        // Path A: Text PDF
-        if (cleanedText.length >= 50 && cleanedText.match(/[a-zA-Z0-9]{20,}/)) {
+        if (hasUsableText) {
           console.log(`[ReportAnalyzer] pdfType=TEXT_PDF`);
-          reportText = (reportText ? reportText + "\n" : "") + cleanedText;
-          imageBase64 = null; // Unset so we don't trigger Vision API
+          reportText = (reportText ? reportText + "\n" : "") + pdfText;
+          
+          // Also extract embedded page images as secondary fallback
+          try {
+            const images = await extractImagesFromPDF(pdfBuffer);
+            if (images.length > 0) {
+              extractedImages = images;
+            }
+          } catch (e) {
+            console.log("[ReportAnalyzer] PDF image secondary extraction passed:", e);
+          }
+          imageBase64 = null;
         } 
-        // Path B: Scanned PDF
+        // Path B: Scanned/Image-based PDF
         else {
           console.log(`[ReportAnalyzer] pdfType=SCANNED_PDF`);
           const images = await extractImagesFromPDF(pdfBuffer);
@@ -376,11 +404,11 @@ export async function POST(request: Request) {
           if (images.length > 0) {
             extractedImages = images;
             console.log(`[ReportAnalyzer] extractedImages=${images.length}`);
-            imageBase64 = null; // Unset the PDF base64 since we'll use extractedImages instead
+            imageBase64 = null;
           } else {
-            console.log(`[ReportAnalyzer] Extraction failed: No usable images found in scanned PDF.`);
+            console.log(`[ReportAnalyzer] Extraction failed: No usable text layer or scanned images found in PDF.`);
             return NextResponse.json(
-              { error: "Unable to reliably read this medical report. Please upload a clearer PDF/image." },
+              { error: "Unable to reliably read this medical report PDF. Please ensure the document is clear and readable." },
               { status: 400 }
             );
           }
@@ -393,12 +421,18 @@ export async function POST(request: Request) {
         );
       }
     } 
-    // Image Upload Handling (JPG, PNG)
-    else if (imageBase64 && imageBase64.startsWith("data:image/")) {
-      const mimeType = imageBase64.split(";")[0].split(":")[1];
+    // Image Upload Handling (JPG, PNG, WebP)
+    else if (imageBase64 && (imageBase64.startsWith("data:image/") || imageBase64.startsWith("data:application/octet-stream"))) {
+      let mime = imageBase64.split(";")[0].split(":")[1] || "image/jpeg";
+      mime = mime.toLowerCase().trim();
+      if (mime === "image/jpg" || mime === "jpg") mime = "image/jpeg";
+      if (mime === "application/octet-stream") mime = "image/jpeg";
+
       const base64Data = imageBase64.split(",")[1];
-      extractedImages.push({ base64: base64Data, mimeType });
-      imageBase64 = null; // Handled
+      if (base64Data && base64Data.length > 100) {
+        extractedImages.push({ base64: base64Data.replace(/\s+/g, ""), mimeType: mime });
+      }
+      imageBase64 = null;
     }
 
     let targetLang = bodyLang || "en";
@@ -423,26 +457,32 @@ export async function POST(request: Request) {
     }
     let extractedDataJson = null;
 
-    // STAGE A: STRUCTURED EXTRACTION
+    // STAGE A: STRUCTURED EXTRACTION (Vision API for images, fallback to text)
     if (extractedImages.length > 0) {
       try {
         extractedDataJson = await extractMedicalDataFromImage(extractedImages, groq);
       } catch (visionErr: unknown) {
         console.error("Vision API Error:", visionErr);
-        const err = visionErr as { message?: string; status?: number; error?: { error?: { code?: string; message?: string } } };
-        let errorMessage = "Unable to extract readable medical information from this report. Please upload a clearer PDF/image.";
-        let statusCode = 400;
-        if (err?.error?.error?.code === 'rate_limit_exceeded' || err?.status === 429) {
-          errorMessage = "This medical report is too long and exceeds the AI processing token limits. Please upload a shorter report or fewer pages.";
-        } else if (err?.error?.error?.code === 'model_not_found' || err?.status === 404 || err?.status === 500 || err?.status === 503) {
-          errorMessage = "Report analysis service is currently experiencing technical difficulties. Please try again shortly.";
-          statusCode = 500;
-        } else if (err?.message) {
-          errorMessage = "Report analysis failed during image processing. " + (err.error?.error?.message || err.message);
+        // If vision failed but reportText was extracted from PDF text layer, fallback to text extraction
+        if (!reportText || reportText.trim().length < 10) {
+          const err = visionErr as { message?: string; status?: number; error?: { error?: { code?: string; message?: string } } };
+          let errorMessage = "Unable to extract readable medical information from this report. Please upload a clearer PDF/image.";
+          let statusCode = 400;
+          if (err?.error?.error?.code === 'rate_limit_exceeded' || err?.status === 429) {
+            errorMessage = "This medical report is too long and exceeds processing token limits. Please upload a shorter report or fewer pages.";
+          } else if (err?.error?.error?.code === 'model_not_found' || err?.status === 404 || err?.status === 500 || err?.status === 503) {
+            errorMessage = "Report analysis service is currently experiencing technical difficulties. Please try again shortly.";
+            statusCode = 500;
+          } else if (err?.message) {
+            errorMessage = "Report analysis failed during image processing. " + (err.error?.error?.message || err.message);
+          }
+          return NextResponse.json({ error: errorMessage }, { status: statusCode });
         }
-        return NextResponse.json({ error: errorMessage }, { status: statusCode });
       }
-    } else if (reportText && reportText.trim().length >= 30) {
+    }
+
+    // If Vision didn't run or yielded 0 parameters, run Structured Text Extraction
+    if ((!extractedDataJson || !extractedDataJson.parameters || extractedDataJson.parameters.length === 0) && reportText && reportText.trim().length >= 10) {
       try {
         console.log(`[ReportAnalyzer] textExtractionStarted=true`);
         const textExtractionPrompt = `
@@ -498,6 +538,36 @@ ${reportText}
       }
     }
 
+    // Fallback line parser if AI JSON returned 0 parameters but reportText has lab lines
+    if ((!extractedDataJson || !extractedDataJson.parameters || extractedDataJson.parameters.length === 0) && reportText && reportText.trim().length >= 10) {
+      const lines = reportText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 3);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsedParams: any[] = [];
+      
+      for (const line of lines) {
+        const match = line.match(/^([a-zA-Z0-9\s%\-_/]+)[:=]\s*([<>]?\s*-?\d+\.?\d*)\s*([a-zA-Z%/^3µ_]*)\s*(?:\(([^)]+)\))?/);
+        if (match) {
+          parsedParams.push({
+            name: match[1].trim(),
+            value: match[2].trim(),
+            unit: match[3]?.trim() || "",
+            referenceRange: match[4]?.trim() || "Not Available"
+          });
+        }
+      }
+
+      if (parsedParams.length > 0) {
+        extractedDataJson = {
+          reportTitle: "Medical Lab Report",
+          reportDate: null,
+          patientName: null,
+          parameters: parsedParams,
+          observations: [reportText],
+          rawSummary: "Extracted from document text lines"
+        };
+      }
+    }
+
     const analysisSourceText = reportText || (extractedDataJson ? JSON.stringify(extractedDataJson, null, 2) : "");
 
     // Anti-hallucination validation on raw inputs
@@ -512,7 +582,7 @@ ${reportText}
     if (!extractedDataJson || !extractedDataJson.parameters || extractedDataJson.parameters.length === 0) {
       console.log(`[ReportAnalyzer] Extraction result validated: FAILED (No parameters found)`);
       return NextResponse.json(
-        { error: "Unable to reliably read this medical report. Please upload a clearer PDF/image." },
+        { error: "Unable to reliably read this medical report. Please ensure the document is clear and contains medical lab parameters." },
         { status: 400 }
       );
     }
@@ -523,7 +593,7 @@ ${reportText}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalizedParameters: any[] = [];
     for (const param of extractedDataJson.parameters) {
-      if (!param.name) continue;
+      if (!param || !param.name) continue;
 
       const rawVal = param.value !== null && param.value !== undefined ? String(param.value) : "";
       const rawRange = param.referenceRange !== null && param.referenceRange !== undefined ? String(param.referenceRange) : "";
@@ -674,7 +744,7 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
       });
 
       const rawAnalysis = analysisCompletion.choices[0]?.message?.content || "{}";
-      const cleanJson = rawAnalysis.replace(/\`\`\`json/g, "").replace(/\`\`\`/g, "").trim();
+      const cleanJson = rawAnalysis.replace(/```json/g, "").replace(/```/g, "").trim();
       const explanationResult = JSON.parse(cleanJson);
 
       // Merge and enforce deterministic values/statuses

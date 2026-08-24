@@ -9,6 +9,42 @@ import { getGroqModel, getGroqClient } from "@/lib/groqConfig";
 
 const groq = getGroqClient();
 
+export type ReportErrorCode =
+  | "FILE_READ_FAILED"
+  | "FILE_TOO_LARGE"
+  | "PDF_TEXT_EXTRACTION_FAILED"
+  | "PDF_RENDER_FAILED"
+  | "IMAGE_PREPARATION_FAILED"
+  | "VISION_REQUEST_FAILED"
+  | "VISION_EMPTY_RESPONSE"
+  | "VISION_JSON_FAILED"
+  | "VISION_SCHEMA_FAILED"
+  | "MEDICAL_VALIDATION_FAILED"
+  | "UNREADABLE_REPORT"
+  | "TIMEOUT"
+  | "UNKNOWN_REPORT_ERROR";
+
+function makeErrorResponse(
+  errorCode: ReportErrorCode,
+  message: string,
+  status: number,
+  requestId: string,
+  extra?: Record<string, unknown>
+) {
+  console.log(`[ReportAnalyzer] requestId=${requestId} finalStatus=${status} errorCode=${errorCode} message="${message}"`);
+  return NextResponse.json(
+    {
+      success: false,
+      errorCode,
+      error: message,
+      message,
+      requestId,
+      ...extra,
+    },
+    { status }
+  );
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -207,8 +243,10 @@ function determineStatus(name: string | null | undefined, valueStr: string | nul
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseJsonSafely(rawText: string): any {
-  if (!rawText || !rawText.trim()) return {};
+function parseJsonSafely(rawText: string): { parsed: any; success: boolean; rawLength: number; startsWithBrace: boolean; endsWithBrace: boolean } {
+  if (!rawText || !rawText.trim()) {
+    return { parsed: {}, success: false, rawLength: 0, startsWithBrace: false, endsWithBrace: false };
+  }
 
   let cleaned = rawText.trim();
 
@@ -219,7 +257,10 @@ function parseJsonSafely(rawText: string): any {
   const firstBrace = cleaned.indexOf("{");
   const lastBrace = cleaned.lastIndexOf("}");
 
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+  const startsWithBrace = firstBrace !== -1;
+  const endsWithBrace = lastBrace !== -1 && lastBrace > firstBrace;
+
+  if (startsWithBrace && endsWithBrace) {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
 
@@ -227,9 +268,10 @@ function parseJsonSafely(rawText: string): any {
   cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
 
   try {
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    return { parsed, success: true, rawLength: rawText.length, startsWithBrace, endsWithBrace };
   } catch {
-    return {};
+    return { parsed: {}, success: false, rawLength: rawText.length, startsWithBrace, endsWithBrace };
   }
 }
 
@@ -248,15 +290,17 @@ interface ExtractedReportData {
   rawSummary: string;
 }
 
-// Helper function for Vision API with strict system prompt, parseJsonSafely, and 1-retry fallback
-async function extractMedicalDataFromImage(extractedImages: { base64: string; mimeType: string }[], groqInstance: Groq, reqId: string) {
+// Helper function for Vision API with strict system prompt, parseJsonSafely, diagnostic logging & 1-retry fallback
+async function extractMedicalDataFromImage(extractedImages: { base64: string; mimeType: string }[], groqInstance: Groq, requestId: string) {
+  const stageStartTime = Date.now();
+  const actualModel = getGroqModel();
+  
   if (extractedImages.length > 2) {
     extractedImages = extractedImages.slice(0, 2);
-    console.log(`[ReportAnalyzer] [${reqId}] Truncated extractedImages to 2 primary pages.`);
   }
 
-  console.log(`[ReportAnalyzer] [${reqId}] visionBatch=${extractedImages.length}`);
-  
+  console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision model=${actualModel} imagesCount=${extractedImages.length}`);
+
   const systemPrompt = `You are a medical laboratory report data extraction system.
 
 Your ONLY task is to extract clearly visible laboratory information from the provided medical report image.
@@ -295,7 +339,9 @@ Follow the required JSON field names and data types exactly.`;
   "observations": [],
   "rawSummary": "Brief summary of test findings"
 }`;
-  
+
+  const plainTextVisionPrompt = `Read this medical report image and return the visible laboratory parameters as plain text. Do not provide medical advice.`;
+
   const extractedDataJson: ExtractedReportData = {
     reportTitle: null,
     reportDate: null,
@@ -307,8 +353,7 @@ Follow the required JSON field names and data types exactly.`;
 
   const seenParams = new Set<string>();
 
-  const batchImages = extractedImages;
-  const imageContents = batchImages.map(img => {
+  const imageContents = extractedImages.map(img => {
     let mime = img.mimeType || "image/jpeg";
     if (mime.toLowerCase() === "image/jpg" || mime.toLowerCase() === "jpg") mime = "image/jpeg";
     return {
@@ -320,15 +365,16 @@ Follow the required JSON field names and data types exactly.`;
   let rawExtraction = "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let batchJson: any = null;
+  let jsonParseSuccess = false;
 
-  const visionStartTime = Date.now();
+  const visionReqStartTime = Date.now();
 
-  // Primary Attempt: Strict JSON Mode with 15s timeout
+  // Attempt 1: Strict JSON Mode with 15s timeout
   try {
-    console.log(`[ReportAnalyzer] [${reqId}] Vision primary request started (images=${batchImages.length})`);
+    console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-request-started model=${actualModel}`);
     
-    const visionCompletionCall = groqInstance.chat.completions.create({
-      model: getGroqModel(),
+    const visionCall = groqInstance.chat.completions.create({
+      model: actualModel,
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -344,33 +390,55 @@ Follow the required JSON field names and data types exactly.`;
       response_format: { type: "json_object" }
     });
 
-    const visionCompletion = await withTimeout(visionCompletionCall, 15000, "Vision API primary call timed out");
+    const visionCompletion = await withTimeout(visionCall, 15000, "Vision API primary call timed out");
+    const visionDuration = (Date.now() - visionReqStartTime) / 1000;
+    
     rawExtraction = visionCompletion.choices[0]?.message?.content || "";
-    const visionElapsed = Date.now() - visionStartTime;
-    console.log(`[ReportAnalyzer] [${reqId}] Vision primary completed in ${visionElapsed}ms (contentLength=${rawExtraction.length})`);
-    
-    batchJson = parseJsonSafely(rawExtraction);
-  } catch (primaryErr: unknown) {
-    const visionElapsed = Date.now() - visionStartTime;
-    console.log(`[ReportAnalyzer] [${reqId}] Vision primary failed after ${visionElapsed}ms. Initiating 1 fallback retry.`);
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pErr = primaryErr as any;
-    if (pErr?.message?.includes("TIMEOUT")) {
-      throw primaryErr; // Pass timeout directly
+    console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-request-completed duration=${visionDuration.toFixed(2)}s rawLength=${rawExtraction.length}`);
+
+    if (!rawExtraction || rawExtraction.trim() === "") {
+      const err = new Error("VISION_EMPTY_RESPONSE");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (err as any).code = "VISION_EMPTY_RESPONSE";
+      throw err;
     }
 
-    // Retry Attempt: Fallback WITHOUT strict response_format requirement with 12s timeout
+    const parseResult = parseJsonSafely(rawExtraction);
+    console.log(`[ReportAnalyzer] requestId=${requestId} stage=json-parsing contentExists=true contentLength=${rawExtraction.length} startsWithBrace=${parseResult.startsWithBrace} endsWithBrace=${parseResult.endsWithBrace} success=${parseResult.success}`);
+    
+    if (parseResult.success && parseResult.parsed && typeof parseResult.parsed === "object") {
+      batchJson = parseResult.parsed;
+      jsonParseSuccess = true;
+    } else {
+      const err = new Error("VISION_JSON_FAILED");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (err as any).code = "VISION_JSON_FAILED";
+      throw err;
+    }
+
+  } catch (primaryErr: unknown) {
+    const visionDuration = (Date.now() - visionReqStartTime) / 1000;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pErr = primaryErr as any;
+    
+    if (pErr?.message?.includes("TIMEOUT")) {
+      console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-request-failed duration=${visionDuration.toFixed(2)}s reason=TIMEOUT`);
+      throw new Error("TIMEOUT");
+    }
+
+    console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-primary-failed duration=${visionDuration.toFixed(2)}s reason=${pErr?.code || pErr?.message || "JSON_FAILED"}. Initiating 1 controlled fallback retry.`);
+
+    // Attempt 2: Fallback Retry WITHOUT response_format constraint (Plain text vision test)
     const retryStartTime = Date.now();
     try {
       const fallbackCall = groqInstance.chat.completions.create({
-        model: getGroqModel(),
+        model: actualModel,
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: "Extract medical parameters cleanly. Output raw JSON object." },
           {
             role: "user",
             content: [
-              { type: "text" as const, text: extractionPrompt },
+              { type: "text" as const, text: plainTextVisionPrompt },
               ...imageContents
             ]
           }
@@ -380,18 +448,68 @@ Follow the required JSON field names and data types exactly.`;
       });
 
       const fallbackCompletion = await withTimeout(fallbackCall, 12000, "Vision API retry fallback call timed out");
+      const retryDuration = (Date.now() - retryStartTime) / 1000;
       rawExtraction = fallbackCompletion.choices[0]?.message?.content || "";
-      const retryElapsed = Date.now() - retryStartTime;
-      console.log(`[ReportAnalyzer] [${reqId}] Vision fallback retry completed in ${retryElapsed}ms (contentLength=${rawExtraction.length})`);
       
-      batchJson = parseJsonSafely(rawExtraction);
-    } catch (retryErr) {
-      console.error(`[ReportAnalyzer] [${reqId}] Vision fallback retry failed:`, retryErr);
-      throw primaryErr;
+      console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-retry-completed duration=${retryDuration.toFixed(2)}s rawLength=${rawExtraction.length}`);
+
+      if (!rawExtraction || rawExtraction.trim() === "") {
+        throw new Error("VISION_EMPTY_RESPONSE");
+      }
+
+      const parseResult = parseJsonSafely(rawExtraction);
+      if (parseResult.success && parseResult.parsed && typeof parseResult.parsed === "object") {
+        batchJson = parseResult.parsed;
+        jsonParseSuccess = true;
+      } else {
+        // If raw text has parameters, build fallback object
+        if (rawExtraction.length > 20 && (/[0-9]/.test(rawExtraction) || /[a-zA-Z]{3,}/.test(rawExtraction))) {
+          console.log(`[ReportAnalyzer] requestId=${requestId} stage=vision-retry-text-detected rawLength=${rawExtraction.length}`);
+          batchJson = {
+            reportTitle: "Medical Lab Report",
+            parameters: [],
+            observations: [rawExtraction],
+            rawSummary: "Extracted via vision text fallback"
+          };
+          jsonParseSuccess = true;
+        } else {
+          throw new Error("VISION_JSON_FAILED");
+        }
+      }
+    } catch (retryErr: unknown) {
+      const retryDuration = (Date.now() - retryStartTime) / 1000;
+      console.error(`[ReportAnalyzer] requestId=${requestId} stage=vision-retry-failed duration=${retryDuration.toFixed(2)}s:`, retryErr);
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rErr = retryErr as any;
+      if (rErr?.message?.includes("TIMEOUT")) {
+        throw new Error("TIMEOUT");
+      }
+      if (rErr?.message === "VISION_EMPTY_RESPONSE" || pErr?.message === "VISION_EMPTY_RESPONSE") {
+        throw new Error("VISION_EMPTY_RESPONSE");
+      }
+      if (rErr?.message === "VISION_JSON_FAILED" || pErr?.message === "VISION_JSON_FAILED") {
+        throw new Error("VISION_JSON_FAILED");
+      }
+      
+      throw new Error("VISION_REQUEST_FAILED");
     }
   }
-  
-  if (batchJson && batchJson.parameters && Array.isArray(batchJson.parameters)) {
+
+  // Schema Validation Check
+  if (!jsonParseSuccess || !batchJson) {
+    throw new Error("VISION_JSON_FAILED");
+  }
+
+  if (batchJson && typeof batchJson !== "object") {
+    console.log(`[ReportAnalyzer] requestId=${requestId} stage=schema-validation status=FAIL expected=object received=${typeof batchJson}`);
+    throw new Error("VISION_SCHEMA_FAILED");
+  }
+
+  const schemaElapsed = (Date.now() - stageStartTime) / 1000;
+  console.log(`[ReportAnalyzer] requestId=${requestId} stage=schema-validation status=PASS duration=${schemaElapsed.toFixed(2)}s`);
+
+  if (batchJson.parameters && Array.isArray(batchJson.parameters)) {
     for (const param of batchJson.parameters) {
       if (!param || !param.name) continue;
       const key = `${String(param.name).toLowerCase().trim()}_${String(param.value || "").toLowerCase().trim()}`;
@@ -401,15 +519,14 @@ Follow the required JSON field names and data types exactly.`;
       }
     }
   }
-  if (batchJson && batchJson.observations && Array.isArray(batchJson.observations)) {
+  if (batchJson.observations && Array.isArray(batchJson.observations)) {
     extractedDataJson.observations.push(...batchJson.observations);
   }
-  if (batchJson && batchJson.reportTitle && !extractedDataJson.reportTitle) extractedDataJson.reportTitle = batchJson.reportTitle;
-  if (batchJson && batchJson.reportDate && !extractedDataJson.reportDate) extractedDataJson.reportDate = batchJson.reportDate;
-  if (batchJson && batchJson.patientName && !extractedDataJson.patientName) extractedDataJson.patientName = batchJson.patientName;
-  if (batchJson && batchJson.rawSummary) extractedDataJson.rawSummary += (extractedDataJson.rawSummary ? " " : "") + batchJson.rawSummary;
-  
-  console.log(`[ReportAnalyzer] [${reqId}] structuredParameters=${extractedDataJson.parameters.length}`);
+  if (batchJson.reportTitle && !extractedDataJson.reportTitle) extractedDataJson.reportTitle = batchJson.reportTitle;
+  if (batchJson.reportDate && !extractedDataJson.reportDate) extractedDataJson.reportDate = batchJson.reportDate;
+  if (batchJson.patientName && !extractedDataJson.patientName) extractedDataJson.patientName = batchJson.patientName;
+  if (batchJson.rawSummary) extractedDataJson.rawSummary += (extractedDataJson.rawSummary ? " " : "") + batchJson.rawSummary;
+
   return extractedDataJson;
 }
 
@@ -444,7 +561,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const reqId = "req_" + Math.random().toString(36).substring(2, 9);
   const reqStartTime = Date.now();
-  console.log(`[ReportAnalyzer] [${reqId}] request started`);
+  console.log(`[ReportAnalyzer] requestId=${reqId} stage=request-started model=${getGroqModel()}`);
 
   try {
     await connectDB();
@@ -461,6 +578,7 @@ export async function POST(request: Request) {
     let extractedImages: { base64: string; mimeType: string }[] = [];
 
     // Stage 1: Parse Request Payload (FormData vs JSON)
+    const fileReadStartTime = Date.now();
     if (contentType.includes("multipart/form-data") || contentType.includes("form-data")) {
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
@@ -469,12 +587,15 @@ export async function POST(request: Request) {
       isSample = formData.get("isSample") === "true";
 
       if (file) {
-        console.log(`[ReportAnalyzer] [${reqId}] file received (bytes=${file.size}, mime=${file.type})`);
+        const fileReadDuration = (Date.now() - fileReadStartTime) / 1000;
+        console.log(`[ReportAnalyzer] requestId=${reqId} stage=file-read duration=${fileReadDuration.toFixed(2)}s bytes=${file.size} mime=${file.type}`);
+        
         if (file.size > 4.5 * 1024 * 1024) {
-          console.log(`[ReportAnalyzer] [${reqId}] file size exceeded limit`);
-          return NextResponse.json(
-            { error: "The uploaded report is too large to process. Please upload a smaller file (under 4 MB)." },
-            { status: 413 }
+          return makeErrorResponse(
+            "FILE_TOO_LARGE",
+            "The uploaded report is too large to process. Please upload a smaller file (under 4 MB).",
+            413,
+            reqId
           );
         }
 
@@ -496,6 +617,13 @@ export async function POST(request: Request) {
             base64: buffer.toString("base64"),
             mimeType: mime,
           });
+        } else {
+          return makeErrorResponse(
+            "FILE_READ_FAILED",
+            "This file format cannot be analyzed. Please upload a valid PDF or image.",
+            400,
+            reqId
+          );
         }
       }
     } else {
@@ -523,19 +651,20 @@ export async function POST(request: Request) {
       }
     }
 
-    const validationElapsed = Date.now() - reqStartTime;
-    console.log(`[ReportAnalyzer] [${reqId}] file validation completed (elapsed=${validationElapsed}ms)`);
+    const validationDuration = (Date.now() - reqStartTime) / 1000;
+    console.log(`[ReportAnalyzer] requestId=${reqId} stage=file-validation duration=${validationDuration.toFixed(2)}s`);
 
     // Stage 2: PDF Processing (Text PDF -> Scanned PDF Vision Fallback)
     if (pdfBuffer) {
       const pdfStartTime = Date.now();
-      console.log(`[ReportAnalyzer] [${reqId}] PDF/text extraction started`);
 
       const isPdf = pdfBuffer.slice(0, 4).toString() === "%PDF";
       if (!isPdf) {
-        return NextResponse.json(
-          { error: "The uploaded file is not a valid PDF document." },
-          { status: 400 }
+        return makeErrorResponse(
+          "PDF_TEXT_EXTRACTION_FAILED",
+          "The uploaded file is not a valid PDF document.",
+          400,
+          reqId
         );
       }
 
@@ -545,28 +674,30 @@ export async function POST(request: Request) {
         const pdfData = await pdfParse(pdfBuffer);
         pdfText = (pdfData.text || "").trim();
       } catch (parseErr) {
-        console.log(`[ReportAnalyzer] [${reqId}] pdf-parse text extraction warning:`, parseErr);
+        console.log(`[ReportAnalyzer] requestId=${reqId} pdf-parse warning:`, parseErr);
       }
 
-      const pdfElapsed = Date.now() - pdfStartTime;
+      const pdfDuration = (Date.now() - pdfStartTime) / 1000;
       const hasUsableText = pdfText.length >= 10 && (/[0-9]/.test(pdfText) || /[a-zA-Z]{3,}/.test(pdfText));
 
       if (hasUsableText) {
-        console.log(`[ReportAnalyzer] [${reqId}] PDF text extraction completed (type=TEXT_PDF, textLength=${pdfText.length}, elapsed=${pdfElapsed}ms)`);
+        console.log(`[ReportAnalyzer] requestId=${reqId} stage=pdf-extraction type=TEXT_PDF duration=${pdfDuration.toFixed(2)}s textLength=${pdfText.length}`);
         reportText = (reportText ? reportText + "\n" : "") + pdfText;
-        // Text PDFs MUST NOT populate extractedImages so they bypass slow Vision image processing!
         extractedImages = [];
       } else {
-        console.log(`[ReportAnalyzer] [${reqId}] PDF text layer insufficient, checking scanned page images...`);
+        console.log(`[ReportAnalyzer] requestId=${reqId} stage=pdf-extraction type=SCANNED_PDF textLayerInsufficient=true`);
         const images = await extractImagesFromPDF(pdfBuffer);
+        const pdfRenderDuration = (Date.now() - pdfStartTime) / 1000;
+        
         if (images.length > 0) {
           extractedImages = images.slice(0, 2);
-          console.log(`[ReportAnalyzer] [${reqId}] PDF scanned page images extracted (count=${extractedImages.length}, elapsed=${pdfElapsed}ms)`);
+          console.log(`[ReportAnalyzer] requestId=${reqId} stage=pdf-render duration=${pdfRenderDuration.toFixed(2)}s imagesCount=${extractedImages.length}`);
         } else {
-          console.log(`[ReportAnalyzer] [${reqId}] Extraction failed: No text layer or page images in PDF.`);
-          return NextResponse.json(
-            { error: "Unable to reliably read this medical report PDF. Please ensure the document is clear and contains medical lab parameters." },
-            { status: 400 }
+          return makeErrorResponse(
+            "PDF_RENDER_FAILED",
+            "Unable to reliably read this medical report PDF. Please ensure the document is clear and contains medical lab parameters.",
+            400,
+            reqId
           );
         }
       }
@@ -587,9 +718,11 @@ export async function POST(request: Request) {
     const langName = targetLang === "hi" ? "Hindi (हिंदी)" : "English";
 
     if (!reportText && extractedImages.length === 0) {
-      return NextResponse.json(
-        { error: "Please provide a report image or report text to analyze." },
-        { status: 400 }
+      return makeErrorResponse(
+        "IMAGE_PREPARATION_FAILED",
+        "Please provide a report image or report text to analyze.",
+        400,
+        reqId
       );
     }
     let extractedDataJson = null;
@@ -599,38 +732,52 @@ export async function POST(request: Request) {
       try {
         extractedDataJson = await extractMedicalDataFromImage(extractedImages, groq, reqId);
       } catch (visionErr: unknown) {
-        const elapsed = Date.now() - reqStartTime;
-        console.error(`[ReportAnalyzer] [${reqId}] Vision API Error after ${elapsed}ms:`, visionErr);
-        
+        const totalDuration = (Date.now() - reqStartTime) / 1000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const err = visionErr as any;
+        const errCode = String(err?.message || "");
+
+        console.error(`[ReportAnalyzer] requestId=${reqId} stage=vision-failed duration=${totalDuration.toFixed(2)}s errorCode=${errCode}`, visionErr);
+
         if (!reportText || reportText.trim().length < 10) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const err = visionErr as any;
-          const msg = String(err?.message || "");
-
-          if (msg.includes("TIMEOUT")) {
-            return NextResponse.json(
-              { error: "Report analysis took too long. Please try a clearer or smaller report." },
-              { status: 504 }
+          if (errCode === "TIMEOUT") {
+            return makeErrorResponse(
+              "TIMEOUT",
+              "Report analysis took too long. Please try again with a smaller or clearer file.",
+              504,
+              reqId
+            );
+          }
+          if (errCode === "VISION_EMPTY_RESPONSE") {
+            return makeErrorResponse(
+              "VISION_EMPTY_RESPONSE",
+              "The AI service returned no usable analysis. Please try again.",
+              400,
+              reqId
+            );
+          }
+          if (errCode === "VISION_JSON_FAILED") {
+            return makeErrorResponse(
+              "VISION_JSON_FAILED",
+              "The report was read, but its data could not be structured reliably. Please try again with a clearer image.",
+              400,
+              reqId
+            );
+          }
+          if (errCode === "VISION_SCHEMA_FAILED") {
+            return makeErrorResponse(
+              "VISION_SCHEMA_FAILED",
+              "The report data structure could not be validated cleanly. Please try again.",
+              400,
+              reqId
             );
           }
 
-          if (err?.error?.error?.code === 'rate_limit_exceeded' || err?.status === 429) {
-            return NextResponse.json(
-              { error: "The AI service is currently receiving high traffic. Please try again shortly." },
-              { status: 429 }
-            );
-          }
-
-          if (err?.error?.error?.code === 'model_not_found' || err?.status === 404 || err?.status === 500 || err?.status === 503) {
-            return NextResponse.json(
-              { error: "The AI analysis service is temporarily unavailable. Please try again." },
-              { status: 503 }
-            );
-          }
-
-          return NextResponse.json(
-            { error: "The report was read, but its information could not be structured reliably. Please try again with a clearer image." },
-            { status: 400 }
+          return makeErrorResponse(
+            "VISION_REQUEST_FAILED",
+            "The AI analysis service could not process this report. Please try again.",
+            503,
+            reqId
           );
         }
       }
@@ -640,7 +787,7 @@ export async function POST(request: Request) {
     if ((!extractedDataJson || !extractedDataJson.parameters || extractedDataJson.parameters.length === 0) && reportText && reportText.trim().length >= 10) {
       const textExtractStartTime = Date.now();
       try {
-        console.log(`[ReportAnalyzer] [${reqId}] textExtractionStarted=true`);
+        console.log(`[ReportAnalyzer] requestId=${reqId} stage=text-extraction-started`);
         const textExtractionPrompt = `
 You are a highly accurate Medical Lab Report Data Extractor.
 Extract the raw data from the provided medical report text. Do NOT invent any values or reference ranges.
@@ -679,11 +826,12 @@ ${reportText}
 
         const textExtraction = await withTimeout(textCall, 12000, "Text extraction timed out");
         const rawExtraction = textExtraction.choices[0]?.message?.content || "{}";
-        extractedDataJson = parseJsonSafely(rawExtraction);
-        const textExtractElapsed = Date.now() - textExtractStartTime;
-        console.log(`[ReportAnalyzer] [${reqId}] textStructuredParameters=${extractedDataJson.parameters?.length || 0} (elapsed=${textExtractElapsed}ms)`);
+        const parseRes = parseJsonSafely(rawExtraction);
+        extractedDataJson = parseRes.parsed;
+        const textDuration = (Date.now() - textExtractStartTime) / 1000;
+        console.log(`[ReportAnalyzer] requestId=${reqId} stage=text-extraction-completed duration=${textDuration.toFixed(2)}s parametersCount=${extractedDataJson.parameters?.length || 0}`);
       } catch (textExtractErr: unknown) {
-        console.error(`[ReportAnalyzer] [${reqId}] Text Extraction Error:`, textExtractErr);
+        console.error(`[ReportAnalyzer] requestId=${reqId} stage=text-extraction-failed:`, textExtractErr);
         extractedDataJson = {
           reportTitle: "Medical Report",
           reportDate: null,
@@ -729,24 +877,25 @@ ${reportText}
 
     // Anti-hallucination validation on raw inputs
     if (analysisSourceText.includes("I will analyze the report") || analysisSourceText.includes("Based on the provided medical report input data") || analysisSourceText.includes("Image base64 report provided for analysis")) {
-      console.log(`[ReportAnalyzer] [${reqId}] Extraction result validated: FAILED (Hallucination detected)`);
-      return NextResponse.json(
-        { error: "Invalid report content detected. Please upload an actual medical report." },
-        { status: 400 }
+      return makeErrorResponse(
+        "UNREADABLE_REPORT",
+        "Invalid report content detected. Please upload an actual medical report.",
+        400,
+        reqId
       );
     }
 
     if (!extractedDataJson || !extractedDataJson.parameters || extractedDataJson.parameters.length === 0) {
-      console.log(`[ReportAnalyzer] [${reqId}] Extraction result validated: FAILED (No parameters found)`);
-      return NextResponse.json(
-        { error: "Unable to reliably read this medical report. Please ensure the document is clear and contains medical lab parameters." },
-        { status: 400 }
+      return makeErrorResponse(
+        "UNREADABLE_REPORT",
+        "Unable to reliably read this medical report. Please ensure the document is clear and contains medical lab parameters.",
+        400,
+        reqId
       );
     }
 
-    console.log(`[ReportAnalyzer] [${reqId}] Extraction result validated: SUCCESS`);
-
     // Process and classify parameters deterministically
+    const medStartTime = Date.now();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalizedParameters: any[] = [];
     for (const param of extractedDataJson.parameters) {
@@ -791,10 +940,15 @@ ${reportText}
       });
     }
 
+    const medDuration = (Date.now() - medStartTime) / 1000;
+    console.log(`[ReportAnalyzer] requestId=${reqId} stage=medical-validation duration=${medDuration.toFixed(2)}s validParamsCount=${normalizedParameters.length}`);
+
     if (normalizedParameters.length === 0) {
-      return NextResponse.json(
-        { error: "No laboratory parameters could be parsed from the report." },
-        { status: 400 }
+      return makeErrorResponse(
+        "MEDICAL_VALIDATION_FAILED",
+        "No laboratory parameters could be parsed from the report.",
+        400,
+        reqId
       );
     }
 
@@ -812,7 +966,6 @@ ${reportText}
     };
 
     const aiExplanationStartTime = Date.now();
-    console.log(`[ReportAnalyzer] [${reqId}] analysisStarted=true`);
     
     const explanationPrompt = `
 You are AarogyaMitra AI's Medical Lab Report & Prescription Explainer.
@@ -904,9 +1057,10 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
 
       const analysisCompletion = await withTimeout(explanationCall, 15000, "AI explanation stage timed out");
       const rawAnalysis = analysisCompletion.choices[0]?.message?.content || "{}";
-      const explanationResult = parseJsonSafely(rawAnalysis);
-      const aiElapsed = Date.now() - aiExplanationStartTime;
-      console.log(`[ReportAnalyzer] [${reqId}] AI explanation completed in ${aiElapsed}ms`);
+      const parseRes = parseJsonSafely(rawAnalysis);
+      const explanationResult = parseRes.parsed;
+      const aiDuration = (Date.now() - aiExplanationStartTime) / 1000;
+      console.log(`[ReportAnalyzer] requestId=${reqId} stage=ai-explanation duration=${aiDuration.toFixed(2)}s`);
 
       // Merge and enforce deterministic values/statuses
       const finalParameters = normalizedParameters.map(normParam => {
@@ -1057,7 +1211,7 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
       };
 
     } catch (explanationErr) {
-      console.error(`[ReportAnalyzer] [${reqId}] AI Explanation Stage Failed:`, explanationErr);
+      console.error(`[ReportAnalyzer] requestId=${reqId} stage=ai-explanation-failed:`, explanationErr);
       
       const fallbackSummary = targetLang === "hi" 
         ? "रिपोर्ट का विश्लेषण सफलतापूर्वक पूरा हो गया है, लेकिन विस्तृत विवरण अस्थायी रूप से अनुपलब्ध है।" 
@@ -1101,27 +1255,28 @@ CRITICAL: Return ONLY valid JSON in the exact structure specified below:
         });
 
         finalAnalysisResult._id = savedReport._id;
-        console.log(`[ReportAnalyzer] [${reqId}] historySaved=true`);
+        console.log(`[ReportAnalyzer] requestId=${reqId} historySaved=true`);
       } catch (dbErr) {
         console.error("Report database save error:", dbErr);
       }
     }
 
-    const totalElapsed = Date.now() - reqStartTime;
-    console.log(`[ReportAnalyzer] [${reqId}] request completed (totalElapsed=${totalElapsed}ms)`);
+    const totalDuration = (Date.now() - reqStartTime) / 1000;
+    console.log(`[ReportAnalyzer] requestId=${reqId} finalStatus=200 duration=${totalDuration.toFixed(2)}s`);
 
     return NextResponse.json({
       success: true,
       analysis: finalAnalysisResult,
+      requestId: reqId,
     });
   } catch (error: unknown) {
-    const totalElapsed = Date.now() - reqStartTime;
-    console.error(`[ReportAnalyzer] [${reqId}] API Error after ${totalElapsed}ms:`, error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to analyze medical report",
-      },
-      { status: 500 }
+    const totalDuration = (Date.now() - reqStartTime) / 1000;
+    console.error(`[ReportAnalyzer] requestId=${reqId} finalStatus=500 duration=${totalDuration.toFixed(2)}s error:`, error);
+    return makeErrorResponse(
+      "UNKNOWN_REPORT_ERROR",
+      error instanceof Error ? error.message : "Failed to analyze medical report",
+      500,
+      reqId
     );
   }
 }

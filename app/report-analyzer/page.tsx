@@ -209,7 +209,7 @@ export default function ReportAnalyzerPage() {
       }
 
       if (!res.ok) {
-        console.log(`[ReportAnalyzer UI] Status: ${res.status}`);
+        console.log(`[ReportAnalyzer UI] requestId=${data.requestId || "N/A"} status=${res.status} errorCode=${data.errorCode || "NONE"}`);
         console.log(`[ReportAnalyzer UI] Error: ${data.error || data.message}`);
       }
 
@@ -218,7 +218,30 @@ export default function ReportAnalyzerPage() {
         toast.success(t("common.success"));
         fetchHistory();
       } else {
-        toast.error(data.error || data.message || t("common.error"));
+        const code = data.errorCode || "";
+        let userMessage = data.error || data.message;
+        
+        if (code === "VISION_REQUEST_FAILED") {
+          userMessage = "The AI analysis service could not process this report. Please try again.";
+        } else if (code === "VISION_JSON_FAILED") {
+          userMessage = "The report was read, but its data could not be structured reliably.";
+        } else if (code === "VISION_EMPTY_RESPONSE") {
+          userMessage = "The AI service returned no usable analysis. Please try again.";
+        } else if (code === "VISION_SCHEMA_FAILED") {
+          userMessage = "The report data structure could not be validated cleanly. Please try again.";
+        } else if (code === "MEDICAL_VALIDATION_FAILED") {
+          userMessage = "No valid laboratory parameters could be parsed from the report.";
+        } else if (code === "UNREADABLE_REPORT") {
+          userMessage = "Unable to reliably read this medical report. Please ensure the document is clear and contains medical lab parameters.";
+        } else if (code === "TIMEOUT") {
+          userMessage = "Report analysis took too long. Please try again with a smaller or clearer file.";
+        } else if (code === "FILE_TOO_LARGE") {
+          userMessage = "The uploaded report is too large to process.";
+        } else if (code === "FILE_READ_FAILED") {
+          userMessage = "This file format cannot be analyzed. Please upload a valid PDF or image.";
+        }
+
+        toast.error(userMessage || t("common.error"));
       }
     } catch (error) {
       console.error(error);

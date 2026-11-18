@@ -63,7 +63,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): 
   });
 }
 
-export function parseObservedValue(valStr: string | null | undefined): number | null {
+function parseObservedValue(valStr: string | null | undefined): number | null {
   if (valStr === null || valStr === undefined) return null;
   const cleanVal = valStr.toString().replace(/,/g, "").replace(/\s+/g, "");
   const numMatch = cleanVal.match(/^[<>]=?(-?\d+\.?\d*)|^(-?\d+\.?\d*)/);
@@ -80,7 +80,7 @@ export function parseObservedValue(valStr: string | null | undefined): number | 
   return null;
 }
 
-export function parseReferenceRange(rangeStr: string | null | undefined): { low: number | null; high: number | null; operator: string | null } {
+function parseReferenceRange(rangeStr: string | null | undefined): { low: number | null; high: number | null; operator: string | null } {
   if (!rangeStr) return { low: null, high: null, operator: null };
   const cleanRange = rangeStr.replace(/\s+/g, "").replace(/[–—−]/g, "-");
   
@@ -126,7 +126,7 @@ export function parseReferenceRange(rangeStr: string | null | undefined): { low:
   return { low: null, high: null, operator: null };
 }
 
-export function isPhysicallyPlausible(name: string | null | undefined, value: number, rangeStr: string | null | undefined): boolean {
+function isPhysicallyPlausible(name: string | null | undefined, value: number, rangeStr: string | null | undefined): boolean {
   if (!name) return true;
   const normName = name.toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -181,7 +181,7 @@ export function isPhysicallyPlausible(name: string | null | undefined, value: nu
   return true;
 }
 
-export function determineStatus(name: string | null | undefined, valueStr: string | null | undefined, rangeStr: string | null | undefined): "Normal" | "High" | "Low" | "Critical" | "Unknown" {
+function determineStatus(name: string | null | undefined, valueStr: string | null | undefined, rangeStr: string | null | undefined): "Normal" | "High" | "Low" | "Critical" | "Unknown" {
   if (!valueStr) return "Unknown";
   
   const val = parseObservedValue(valueStr);
@@ -243,7 +243,7 @@ export function determineStatus(name: string | null | undefined, valueStr: strin
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseJsonSafely(rawText: string): { parsed: any; success: boolean; rawLength: number; startsWithBrace: boolean; endsWithBrace: boolean } {
+function parseJsonSafely(rawText: string): { parsed: any; success: boolean; rawLength: number; startsWithBrace: boolean; endsWithBrace: boolean } {
   if (!rawText || !rawText.trim()) {
     return { parsed: {}, success: false, rawLength: 0, startsWithBrace: false, endsWithBrace: false };
   }

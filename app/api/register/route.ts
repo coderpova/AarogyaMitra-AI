@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET as string;
+import { signJwt } from "@/lib/jwtHelper";
 
 export async function POST(request: Request) {
   try {
@@ -62,22 +60,11 @@ export async function POST(request: Request) {
       password: hashedPassword,
     });
 
-    if (!JWT_SECRET) {
-      console.error("JWT_SECRET missing in environment");
-      return NextResponse.json({ message: "Server configuration error" }, { status: 500 });
-    }
-
-    // Generate JWT
-    const token = jwt.sign(
-      {
-        userId: user._id.toString(),
-        email: user.email,
-      },
-      JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
+    // Generate JWT using centralized helper
+    const token = signJwt({
+      userId: user._id.toString(),
+      email: user.email,
+    });
 
     const response = NextResponse.json(
       {

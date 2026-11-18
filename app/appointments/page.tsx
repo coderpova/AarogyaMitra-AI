@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/context/LanguageContext";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
@@ -42,7 +42,7 @@ export default function AppointmentsPage() {
     time: "",
   });
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
@@ -69,7 +69,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshSchedules, t]);
 
   useEffect(() => {
     fetchAppointments();

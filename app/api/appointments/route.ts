@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
 
     if (
       !body.patientName ||
@@ -115,7 +115,13 @@ export async function DELETE(request: Request) {
 
     await connectDB();
 
-    const { id } = await request.json();
+    const { id } = await request.json().catch(() => ({}));
+    if (!id) {
+      return NextResponse.json(
+        { message: "Appointment ID is required" },
+        { status: 400 }
+      );
+    }
 
     const appointment = await Appointment.findOne({
       _id: id,
@@ -168,7 +174,13 @@ export async function PATCH(request: Request) {
 
     await connectDB();
 
-    const { id, status } = await request.json();
+    const { id, status } = await request.json().catch(() => ({}));
+    if (!id) {
+      return NextResponse.json(
+        { message: "Appointment ID is required" },
+        { status: 400 }
+      );
+    }
 
     const appointment = await Appointment.findOne({
       _id: id,

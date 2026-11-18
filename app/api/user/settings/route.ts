@@ -15,12 +15,12 @@ export async function PUT(request: Request) {
 
     await connectDB();
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { language } = body;
 
-    if (!language) {
+    if (!language || typeof language !== "string" || !["en", "hi"].includes(language)) {
       return NextResponse.json(
-        { message: "Language is required" },
+        { message: "Valid language ('en' or 'hi') is required" },
         { status: 400 }
       );
     }

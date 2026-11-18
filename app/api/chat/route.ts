@@ -1,27 +1,43 @@
 // frontend/app/api/chat/route.ts
 import { NextResponse } from "next/server";
-import Groq from "groq-sdk";
-import jwt from "jsonwebtoken";
 import connectDB from "@/lib/mongodb";
 import Chat from "@/models/chat";
 import User from "@/models/User";
-import { getAIContext } from "@/lib/aiContext";
 import { detectEmergency, buildDoctorSystemPrompt, parseSuggestedReplies } from "@/lib/healthAssistant";
 import { getGroqModel, getGroqClient } from "@/lib/groqConfig";
 import { parseActionTags, stripActionTags, executeBookAppointment, executeFindHospital, handleChatAction, detectLanguageStyle } from "@/lib/chatActions";
 import { isMedicalQuery, retrieveKnowledge, resolveContextualQuery } from "@/lib/ragService";
 import { validateMedicalSafety } from "@/lib/safetyValidator";
 import { resolvePersonalHealthContext } from "@/lib/personalHealthContext";
-import { signJwt, verifyJwt } from "@/lib/jwtHelper";
+import { getAuthUserId } from "@/lib/jwtHelper";
 import { enforceRequestSize } from "@/lib/requestSizeValidator";
 import { rateLimit } from "@/lib/rateLimiter";
-import logger from "@/lib/logger";
-import { metrics } from "@/lib/metrics";
-import { mongoFallbackMessage, groqFallbackMessage, ragFallbackMessage, safetyFallbackMessage } from "@/lib/degradedMode";
 
 
 export async function POST(req: Request) {
+  const sizeResp = await enforceRequestSize(req, 2 * 1024 * 1024);
+  if (sizeResp) return sizeResp;
+
   try {
+    const authenticatedUserId = getAuthUserId(req);
+
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { message: "Unauthorized. Please log in to chat." },
+        { status: 401 }
+      );
+    }
+
+    const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = rateLimit("chat", authenticatedUserId || ip);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: "TOO_MANY_REQUESTS", message: "Rate limit exceeded" }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const {
       message,
       language,
@@ -29,36 +45,10 @@ export async function POST(req: Request) {
       reportContext,
       conversationId,
       title,
-    } = await req.json();
+    } = body;
 
-    if (!message || message.trim() === "") {
+    if (!message || typeof message !== "string" || message.trim() === "") {
       return NextResponse.json({ message: "Message is required" }, { status: 400 });
-    }
-
-    let authenticatedUserId: string | null = null;
-    const authHeader = req.headers.get("authorization");
-    let token = authHeader ? authHeader.split(" ")[1] : null;
-
-    if (!token) {
-      const cookieHeader = req.headers.get("cookie") || "";
-      const match = cookieHeader.match(/(?:^|;)\s*token\s*=\s*([^;]+)/);
-      token = match ? match[1] : null;
-    }
-
-    if (token) {
-      try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        authenticatedUserId = decoded.userId;
-      } catch (err) {
-        // Invalid token - fall through as guest
-      }
-    }
-
-    if (!authenticatedUserId) {
-      return NextResponse.json(
-        { message: "Unauthorized. Please log in to chat." },
-        { status: 401 }
-      );
     }
 
     let selectedLang = language || "en";
@@ -138,7 +128,6 @@ export async function POST(req: Request) {
 
     // ── AI PERSONAL HEALTH CONTEXT (PHASE 3.5) ──────────────────────────────
     let personalContextText = "";
-    let personalContextMeta: any = null;
     if (authenticatedUserId) {
       try {
         const phcResult = await resolvePersonalHealthContext({
@@ -149,11 +138,6 @@ export async function POST(req: Request) {
 
         if (phcResult.hasContext) {
           personalContextText = phcResult.contextText;
-          personalContextMeta = {
-            itemCount: phcResult.itemCount,
-            resolvedTopic: phcResult.resolvedTopic,
-            provenanceCount: phcResult.provenance.length,
-          };
           console.log(`[PersonalHealthContext] Resolved ${phcResult.itemCount} authorized items for topic "${phcResult.resolvedTopic}"`);
         }
       } catch (phcErr) {

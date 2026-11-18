@@ -18,7 +18,7 @@ export function verifyJwt(token: string): { userId: string; email?: string } | n
       return { userId: decoded.userId || decoded.id, email: decoded.email };
     }
     return null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

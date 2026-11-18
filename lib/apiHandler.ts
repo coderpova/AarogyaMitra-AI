@@ -1,14 +1,11 @@
 // frontend/lib/apiHandler.ts
 
-import { NextResponse } from "next/server";
 import { verifyJwt } from "@/lib/jwtHelper";
-import { rateLimit, withRateLimit } from "@/lib/rateLimiter";
+import { rateLimit } from "@/lib/rateLimiter";
 import { enforceRequestSize } from "@/lib/requestSizeValidator";
 import logger from "@/lib/logger";
 import { metrics } from "@/lib/metrics";
 import { ApiError, handleApiError } from "@/lib/apiError";
-import { withMongoRetry } from "@/lib/withMongoRetry";
-import { withGroqRetry } from "@/lib/withGroqRetry";
 import { randomUUID } from "crypto";
 
 /**
@@ -54,13 +51,10 @@ export async function handleApi({
 
   // Payload size validation
   if (maxPayloadBytes) {
-    const sizeOk = enforceRequestSize(request, maxPayloadBytes);
-    if (!sizeOk) {
+    const sizeResp = await enforceRequestSize(request, maxPayloadBytes);
+    if (sizeResp) {
       logger.warn(`Payload too large`, { ...loggerMeta, route, size: maxPayloadBytes });
-      return new Response(
-        JSON.stringify({ error: "PAYLOAD_TOO_LARGE", message: "Request payload is too large." }),
-        { status: 413, headers: { "Content-Type": "application/json" } }
-      );
+      return sizeResp;
     }
   }
 
@@ -105,7 +99,7 @@ export async function handleApi({
   if (request.method !== "GET" && request.method !== "HEAD") {
     try {
       payload = await request.clone().json();
-    } catch (e) {
+    } catch {
       // ignore; coreHandler can handle missing payload
     }
   }
